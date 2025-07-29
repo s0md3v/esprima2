@@ -59,8 +59,6 @@ class Config(Object):
         self.tokens = tokens
         self.comment = comment
         self.tolerant = tolerant
-        # Always use ES2024 for modern syntax support
-        self.ecmaVersion = 2024
         for k, v in options.items():
             setattr(self, k, v)
 
