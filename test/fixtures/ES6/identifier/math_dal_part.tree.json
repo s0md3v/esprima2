@@ -4,7 +4,7 @@
         {
             "range": [
                 0,
-                7
+                6
             ],
             "loc": {
                 "start": {
@@ -13,7 +13,7 @@
                 },
                 "end": {
                     "line": 1,
-                    "column": 7
+                    "column": 6
                 }
             },
             "type": "VariableDeclaration",
@@ -21,7 +21,7 @@
                 {
                     "range": [
                         4,
-                        7
+                        6
                     ],
                     "loc": {
                         "start": {
@@ -30,14 +30,14 @@
                         },
                         "end": {
                             "line": 1,
-                            "column": 7
+                            "column": 6
                         }
                     },
                     "type": "VariableDeclarator",
                     "id": {
                         "range": [
                             4,
-                            7
+                            6
                         ],
                         "loc": {
                             "start": {
@@ -46,7 +46,7 @@
                             },
                             "end": {
                                 "line": 1,
-                                "column": 7
+                                "column": 6
                             }
                         },
                         "type": "Identifier",
@@ -83,7 +83,7 @@
             "value": "_𞸃",
             "range": [
                 4,
-                7
+                6
             ],
             "loc": {
                 "start": {
@@ -92,14 +92,14 @@
                 },
                 "end": {
                     "line": 1,
-                    "column": 7
+                    "column": 6
                 }
             }
         }
     ],
     "range": [
         0,
-        7
+        6
     ],
     "loc": {
         "start": {
@@ -108,7 +108,7 @@
         },
         "end": {
             "line": 1,
-            "column": 7
+            "column": 6
         }
     }
 }

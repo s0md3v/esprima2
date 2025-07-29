@@ -1,134 +1,334 @@
 {
-  "type": "Program",
-  "sourceType": "module",
-  "body": [
-    {
-      "type": "ImportDeclaration",
-      "specifiers": [
+    "type": "Program",
+    "sourceType": "module",
+    "body": [
         {
-          "type": "ImportDefaultSpecifier",
-          "local": {
-            "type": "Identifier",
-            "name": "json",
-            "range": [
-              7,
-              11
+            "type": "ImportDeclaration",
+            "specifiers": [
+                {
+                    "type": "ImportDefaultSpecifier",
+                    "local": {
+                        "type": "Identifier",
+                        "name": "json",
+                        "range": [
+                            7,
+                            11
+                        ],
+                        "loc": {
+                            "start": {
+                                "line": 1,
+                                "column": 7
+                            },
+                            "end": {
+                                "line": 1,
+                                "column": 11
+                            }
+                        }
+                    },
+                    "range": [
+                        7,
+                        11
+                    ],
+                    "loc": {
+                        "start": {
+                            "line": 1,
+                            "column": 7
+                        },
+                        "end": {
+                            "line": 1,
+                            "column": 11
+                        }
+                    }
+                }
             ],
-            "loc": {
-              "start": {
-                "line": 1,
-                "column": 7
-              },
-              "end": {
-                "line": 1,
-                "column": 11
-              }
-            }
-          },
-          "range": [
-            7,
-            11
-          ],
-          "loc": {
-            "start": {
-              "line": 1,
-              "column": 7
+            "source": {
+                "type": "Literal",
+                "value": "./data.json",
+                "raw": "\"./data.json\"",
+                "range": [
+                    17,
+                    30
+                ],
+                "loc": {
+                    "start": {
+                        "line": 1,
+                        "column": 17
+                    },
+                    "end": {
+                        "line": 1,
+                        "column": 30
+                    }
+                }
             },
-            "end": {
-              "line": 1,
-              "column": 11
-            }
-          }
-        }
-      ],
-      "source": {
-        "type": "Literal",
-        "value": "./data.json",
-        "raw": "\"./data.json\"",
-        "range": [
-          17,
-          30
-        ],
-        "loc": {
-          "start": {
-            "line": 1,
-            "column": 17
-          },
-          "end": {
-            "line": 1,
-            "column": 30
-          }
-        }
-      },
-      "attributes": [
-        {
-          "key": {
-            "type": "Identifier",
-            "name": "type",
+            "attributes": [
+                {
+                    "key": {
+                        "type": "Identifier",
+                        "name": "type",
+                        "range": [
+                            38,
+                            42
+                        ],
+                        "loc": {
+                            "start": {
+                                "line": 1,
+                                "column": 38
+                            },
+                            "end": {
+                                "line": 1,
+                                "column": 42
+                            }
+                        }
+                    },
+                    "value": {
+                        "type": "Literal",
+                        "value": "json",
+                        "raw": "\"json\"",
+                        "range": [
+                            44,
+                            50
+                        ],
+                        "loc": {
+                            "start": {
+                                "line": 1,
+                                "column": 44
+                            },
+                            "end": {
+                                "line": 1,
+                                "column": 50
+                            }
+                        }
+                    }
+                }
+            ],
             "range": [
-              38,
-              42
+                0,
+                53
             ],
             "loc": {
-              "start": {
-                "line": 1,
-                "column": 38
-              },
-              "end": {
-                "line": 1,
-                "column": 42
-              }
+                "start": {
+                    "line": 1,
+                    "column": 0
+                },
+                "end": {
+                    "line": 1,
+                    "column": 53
+                }
             }
-          },
-          "value": {
-            "type": "Literal",
-            "value": "json",
-            "raw": "\"json\"",
-            "range": [
-              44,
-              50
-            ],
-            "loc": {
-              "start": {
-                "line": 1,
-                "column": 44
-              },
-              "end": {
-                "line": 1,
-                "column": 50
-              }
-            }
-          }
         }
-      ],
-      "range": [
+    ],
+    "range": [
         0,
         53
-      ],
-      "loc": {
+    ],
+    "loc": {
         "start": {
-          "line": 1,
-          "column": 0
+            "line": 1,
+            "column": 0
         },
         "end": {
-          "line": 1,
-          "column": 53
+            "line": 1,
+            "column": 53
         }
-      }
-    }
-  ],
-  "range": [
-    0,
-    53
-  ],
-  "loc": {
-    "start": {
-      "line": 1,
-      "column": 0
     },
-    "end": {
-      "line": 1,
-      "column": 53
-    }
-  }
+    "tokens": [
+        {
+            "type": "Keyword",
+            "value": "import",
+            "range": [
+                0,
+                6
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 0
+                },
+                "end": {
+                    "line": 1,
+                    "column": 6
+                }
+            }
+        },
+        {
+            "type": "Identifier",
+            "value": "json",
+            "range": [
+                7,
+                11
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 7
+                },
+                "end": {
+                    "line": 1,
+                    "column": 11
+                }
+            }
+        },
+        {
+            "type": "Identifier",
+            "value": "from",
+            "range": [
+                12,
+                16
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 12
+                },
+                "end": {
+                    "line": 1,
+                    "column": 16
+                }
+            }
+        },
+        {
+            "type": "String",
+            "value": "\"./data.json\"",
+            "range": [
+                17,
+                30
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 17
+                },
+                "end": {
+                    "line": 1,
+                    "column": 30
+                }
+            }
+        },
+        {
+            "type": "Keyword",
+            "value": "with",
+            "range": [
+                31,
+                35
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 31
+                },
+                "end": {
+                    "line": 1,
+                    "column": 35
+                }
+            }
+        },
+        {
+            "type": "Punctuator",
+            "value": "{",
+            "range": [
+                36,
+                37
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 36
+                },
+                "end": {
+                    "line": 1,
+                    "column": 37
+                }
+            }
+        },
+        {
+            "type": "Identifier",
+            "value": "type",
+            "range": [
+                38,
+                42
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 38
+                },
+                "end": {
+                    "line": 1,
+                    "column": 42
+                }
+            }
+        },
+        {
+            "type": "Punctuator",
+            "value": ":",
+            "range": [
+                42,
+                43
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 42
+                },
+                "end": {
+                    "line": 1,
+                    "column": 43
+                }
+            }
+        },
+        {
+            "type": "String",
+            "value": "\"json\"",
+            "range": [
+                44,
+                50
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 44
+                },
+                "end": {
+                    "line": 1,
+                    "column": 50
+                }
+            }
+        },
+        {
+            "type": "Punctuator",
+            "value": "}",
+            "range": [
+                51,
+                52
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 51
+                },
+                "end": {
+                    "line": 1,
+                    "column": 52
+                }
+            }
+        },
+        {
+            "type": "Punctuator",
+            "value": ";",
+            "range": [
+                52,
+                53
+            ],
+            "loc": {
+                "start": {
+                    "line": 1,
+                    "column": 52
+                },
+                "end": {
+                    "line": 1,
+                    "column": 53
+                }
+            }
+        }
+    ]
 }
