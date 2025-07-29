@@ -107,8 +107,6 @@ class Scanner(object):
         self.errorHandler = handler
         self.trackComment = False
         self.isModule = False
-        # Always use ES2024
-        self.ecmaVersion = 2024
 
         self.length = len(code)
         self.index = 0
