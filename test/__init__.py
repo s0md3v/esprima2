@@ -72,7 +72,7 @@ def test_factory(_path):
             with open(filename, 'rb') as f:
                 actual_code = f.read()
             if '.source.' in filename:
-                actual_code = SOURCE_RE.sub(r'\2', actual_code).decode('unicode_escape')
+                actual_code = SOURCE_RE.sub(rb'\2', actual_code).decode('unicode_escape')
             else:
                 actual_code = actual_code.decode('utf-8')
 

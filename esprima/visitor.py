@@ -279,10 +279,16 @@ class ToDictVisitor(Visitor):
         items = []
         for k, item in obj.items():
             if item is not None and not k.startswith('_'):
+                # Skip 'optional' field when it's False (default value)
+                if k == 'optional' and item is False:
+                    continue
                 v = yield item
                 k = unicode(k)
                 items.append((self.map.get(k, k), v))
         yield Visited(dict(items))
 
     def visit_SRE_Pattern(self, obj):
+        yield Visited({})
+
+    def visit_Pattern(self, obj):
         yield Visited({})
