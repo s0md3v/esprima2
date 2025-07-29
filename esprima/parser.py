@@ -52,15 +52,13 @@ class Params(object):
 
 
 class Config(Object):
-    def __init__(self, range=False, loc=False, source=None, tokens=False, comment=False, tolerant=False, ecmaVersion=None, **options):
+    def __init__(self, range=False, loc=False, source=None, tokens=False, comment=False, tolerant=False, **options):
         self.range = range
         self.loc = loc
         self.source = source
         self.tokens = tokens
         self.comment = comment
         self.tolerant = tolerant
-        # Default to ES2024 for modern syntax support, max supported is ES2024
-        self.ecmaVersion = 2024 if ecmaVersion is None else min(max(ecmaVersion, 3), 2024)
         for k, v in options.items():
             setattr(self, k, v)
 
@@ -106,7 +104,7 @@ class Parser(object):
 
         self.errorHandler = ErrorHandler()
         self.errorHandler.tolerant = self.config.tolerant
-        self.scanner = Scanner(code, self.errorHandler, self.config.ecmaVersion)
+        self.scanner = Scanner(code, self.errorHandler)
         self.scanner.trackComment = self.config.comment
 
         self.operatorPrecedence = {
@@ -464,9 +462,8 @@ class Parser(object):
         op = self.lookahead.value
         operators = ['=', '*=', '**=', '/=', '%=', '+=', '-=', '<<=', '>>=', '>>>=', '&=', '^=', '|=']
         
-        # ES2021: Logical assignment operators
-        if self.config.ecmaVersion >= 2021:
-            operators.extend(['||=', '&&=', '??='])
+        # ES2021: Logical assignment operators - always enabled
+        operators.extend(['||=', '&&=', '??='])
             
         return op in operators
 
@@ -1184,7 +1181,7 @@ class Parser(object):
                 property = self.parsePropertyName()  # Can handle private identifiers
                 expr = self.finalize(self.startNode(startToken), Node.StaticMemberExpression(expr, property))
 
-            elif self.match('?.') and self.config.ecmaVersion >= 2020:
+            elif self.match('?.'):  # ES2020 optional chaining - always enabled
                 self.context.isBindingElement = False
                 self.context.isAssignmentTarget = False  # Optional chaining is not a valid assignment target
                 self.expect('?.')
@@ -1271,7 +1268,7 @@ class Parser(object):
                 property = self.parsePropertyName()  # Can handle private identifiers
                 expr = self.finalize(node, Node.StaticMemberExpression(expr, property))
 
-            elif self.match('?.') and self.config.ecmaVersion >= 2020:
+            elif self.match('?.'):  # ES2020 optional chaining - always enabled
                 self.context.isBindingElement = False
                 self.context.isAssignmentTarget = False  # Optional chaining is not a valid assignment target
                 self.expect('?.')
@@ -2035,8 +2032,8 @@ class Parser(object):
         node = self.createNode()
         self.expectKeyword('for')
         
-        # Check for 'await' keyword after 'for' (ES2018)
-        if self.config.ecmaVersion >= 2018 and self.context.allowAwait and self.matchContextualKeyword('await'):
+        # Check for 'await' keyword after 'for' (ES2018) - always enabled
+        if self.context.allowAwait and self.matchContextualKeyword('await'):
             isAwait = True
             self.nextToken()
         
@@ -2377,11 +2374,8 @@ class Parser(object):
         if self.match('('):
             self.expect('(')
             if self.match(')'):
-                # ES2019: catch without binding parameter
-                if self.config.ecmaVersion >= 2019:
-                    param = None
-                else:
-                    self.throwUnexpectedToken(self.lookahead)
+                # ES2019: catch without binding parameter - always enabled
+                param = None
             else:
                 params = []
                 param = self.parsePattern(params)
@@ -2397,12 +2391,9 @@ class Parser(object):
                         self.tolerateError(Messages.StrictCatchVariable)
             
             self.expect(')')
-        elif self.config.ecmaVersion >= 2019:
-            # ES2019: catch without parentheses at all
-            param = None
         else:
-            # Pre-ES2019: catch requires parentheses and binding
-            self.expect('(')
+            # ES2019: catch without parentheses at all - always enabled
+            param = None
         
         body = self.parseBlock()
 
@@ -2460,8 +2451,8 @@ class Parser(object):
                 statement = self.parseExpressionStatement()
 
         elif typ is Token.Identifier:
-            # ES2024: Using declarations
-            if self.config.ecmaVersion >= 2024 and self.lookahead.value == 'using':
+            # ES2024: Using declarations - always enabled
+            if self.lookahead.value == 'using':
                 statement = self.parseUsingDeclaration()
             elif self.matchAsyncFunction():
                 statement = self.parseFunctionDeclaration()
@@ -2908,8 +2899,8 @@ class Parser(object):
                 token = self.lookahead
                 isStatic = True
                 
-                # ES2022: Static class blocks
-                if self.match('{') and self.config.ecmaVersion >= 2022:
+                # ES2022: Static class blocks - always enabled
+                if self.match('{'):
                     # This is a static block, not a static property
                     kind = 'static'
                     body = self.parseBlock()
@@ -3053,9 +3044,8 @@ class Parser(object):
         self.context.isModule = True
         self.scanner.isModule = True
         
-        # ES2022: Enable top-level await in modules
-        if self.config.ecmaVersion >= 2022:
-            self.context.allowAwait = True
+        # ES2022: Enable top-level await in modules - always enabled
+        self.context.allowAwait = True
             
         node = self.createNode()
         body = self.parseDirectivePrologues()

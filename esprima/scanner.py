@@ -102,12 +102,11 @@ class Octal(object):
 
 
 class Scanner(object):
-    def __init__(self, code, handler, ecmaVersion=2024):
+    def __init__(self, code, handler):
         self.source = unicode(code) + '\x00'
         self.errorHandler = handler
         self.trackComment = False
         self.isModule = False
-        self.ecmaVersion = ecmaVersion
 
         self.length = len(code)
         self.index = 0
@@ -629,20 +628,17 @@ class Scanner(object):
         elif str == '?':
             # Check for nullish coalescing assignment operator (??=) - ES2021
             if (self.index + 2 < self.length and 
-                self.source[self.index + 1:self.index + 3] == '?=' and 
-                self.ecmaVersion >= 2021):
+                self.source[self.index + 1:self.index + 3] == '?='):  # ES2021 nullish assignment - always enabled
                 self.index += 3
                 str = '??='
-            # Check for nullish coalescing operator (??) - ES2020
+            # Check for nullish coalescing operator (??) - ES2020, always enabled
             elif (self.index + 1 < self.length and 
-                  self.source[self.index + 1] == '?' and 
-                  self.ecmaVersion >= 2020):
+                  self.source[self.index + 1] == '?'):
                 self.index += 2
                 str = '??'
-            # Check for optional chaining operator (?.) - ES2020
+            # Check for optional chaining operator (?.) - ES2020, always enabled
             elif (self.index + 1 < self.length and 
-                  self.source[self.index + 1] == '.' and 
-                  self.ecmaVersion >= 2020):
+                  self.source[self.index + 1] == '.'):
                 # Only if not followed by a digit (to avoid confusion with ?.123)
                 if (self.index + 2 >= self.length or 
                     not Character.isDecimalDigit(self.source[self.index + 2])):
@@ -686,8 +682,8 @@ class Scanner(object):
                         if str in '<>=!+-*%^/':
                             self.index += 1
                         elif str == '&':
-                            # Check for logical assignment &&= (ES2021)
-                            if self.source[self.index + 1:self.index + 3] == '&=' and self.ecmaVersion >= 2021:
+                            # Check for logical assignment &&= (ES2021), always enabled
+                            if self.source[self.index + 1:self.index + 3] == '&=':
                                 str = '&&='
                                 self.index += 3
                             elif self.source[self.index + 1] == '&':
@@ -699,8 +695,8 @@ class Scanner(object):
                             else:
                                 self.index += 1
                         elif str == '|':
-                            # Check for logical assignment ||= (ES2021)
-                            if self.source[self.index + 1:self.index + 3] == '|=' and self.ecmaVersion >= 2021:
+                            # Check for logical assignment ||= (ES2021), always enabled
+                            if self.source[self.index + 1:self.index + 3] == '|=':
                                 str = '||='
                                 self.index += 3
                             elif self.source[self.index + 1] == '|':
@@ -855,7 +851,7 @@ class Scanner(object):
                     if self.isImplicitOctalLiteral():
                         return self.scanOctalLiteral(ch, start)
 
-            while Character.isDecimalDigit(self.source[self.index]) or (self.ecmaVersion >= 2021 and self.source[self.index] == '_'):
+            while Character.isDecimalDigit(self.source[self.index]) or self.source[self.index] == '_':  # ES2021 numeric separators always enabled
                 ch = self.source[self.index]
                 if ch == '_':
                     # ES2021: Numeric separator - validate placement
@@ -872,7 +868,7 @@ class Scanner(object):
         if ch == '.':
             num += self.source[self.index]
             self.index += 1
-            while Character.isDecimalDigit(self.source[self.index]) or (self.ecmaVersion >= 2021 and self.source[self.index] == '_'):
+            while Character.isDecimalDigit(self.source[self.index]) or self.source[self.index] == '_':  # ES2021 numeric separators always enabled
                 ch = self.source[self.index]
                 if ch == '_':
                     # ES2021: Numeric separator in fractional part
@@ -896,7 +892,7 @@ class Scanner(object):
                 self.index += 1
 
             if Character.isDecimalDigit(self.source[self.index]):
-                while Character.isDecimalDigit(self.source[self.index]) or (self.ecmaVersion >= 2021 and self.source[self.index] == '_'):
+                while Character.isDecimalDigit(self.source[self.index]) or self.source[self.index] == '_':  # ES2021 numeric separators always enabled
                     ch = self.source[self.index]
                     if ch == '_':
                         # ES2021: Numeric separator in exponent
@@ -917,24 +913,23 @@ class Scanner(object):
             if '.' in num or 'e' in num.lower():
                 self.throwUnexpectedToken()
             
-            # Only check for ES2020+ support
-            if self.ecmaVersion >= 2020:
-                self.index += 1  # consume 'n'
-                # BigInt value: convert string to int for storage
-                try:
-                    bigint_value = int(num)
-                except ValueError:
-                    self.throwUnexpectedToken()
-                
-                return RawToken(
-                    type=Token.BigIntLiteral,
-                    value=bigint_value,
-                    raw=num + 'n',
-                    lineNumber=self.lineNumber,
-                    lineStart=self.lineStart,
-                    start=start,
-                    end=self.index
-                )
+            # ES2020+ BigInt support - always enabled
+            self.index += 1  # consume 'n'
+            # BigInt value: convert string to int for storage
+            try:
+                bigint_value = int(num)
+            except ValueError:
+                self.throwUnexpectedToken()
+            
+            return RawToken(
+                type=Token.BigIntLiteral,
+                value=bigint_value,
+                raw=num + 'n',
+                lineNumber=self.lineNumber,
+                lineStart=self.lineStart,
+                start=start,
+                end=self.index
+            )
 
         if Character.isIdentifierStart(self.source[self.index]):
             self.throwUnexpectedToken()
@@ -1304,8 +1299,8 @@ class Scanner(object):
 
         ch = self.source[self.index]
 
-        # ES2023: Hashbang grammar - only at the very beginning of source
-        if self.index == 0 and ch == '#' and self.index + 1 < self.length and self.source[self.index + 1] == '!' and self.ecmaVersion >= 2023:
+        # ES2023: Hashbang grammar - only at the very beginning of source, always enabled
+        if self.index == 0 and ch == '#' and self.index + 1 < self.length and self.source[self.index + 1] == '!':
             return self.scanHashbang()
 
         if Character.isIdentifierStart(ch):
@@ -1335,8 +1330,8 @@ class Scanner(object):
         if ch == '`' or (ch == '}' and self.curlyStack and self.curlyStack[-1] == '${'):
             return self.scanTemplate()
 
-        # ES2021: Private identifiers start with #
-        if ch == '#' and self.ecmaVersion >= 2021:
+        # ES2021: Private identifiers start with # - always enabled
+        if ch == '#':
             return self.scanPrivateIdentifier()
 
         # Possible identifier start in a surrogate pair.
