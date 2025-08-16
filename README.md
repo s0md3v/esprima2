@@ -8,7 +8,7 @@
 
 ## Features
 -  Full support for [ECMAScript 2024](https://www.ecma-international.org/publications-and-standards/standards/ecma-262/>)
--  Sensible [syntax tree format](https://github.com/estree/estree/blob/master/es5.md) as tandardized by [ESTree project](https://github.com/estree/estree)
+-  Sensible [syntax tree format](https://github.com/estree/estree/blob/master/es5.md) as standardized by [ESTree project](https://github.com/estree/estree)
 -  Experimental support for [JSX](https://facebook.github.io/jsx/), a syntax extension for [React](https://facebook.github.io/react/)
 -  Optional tracking of syntax node location (index-based and line-column)
 -  [Heavily tested](https://esprima.org/test/ci.html) (~1500 [unit tests](https://github.com/s0md3v/esprima/tree/master/test/fixtures))
