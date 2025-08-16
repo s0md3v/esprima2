@@ -735,6 +735,19 @@ class Scanner(object):
         if len(num) == 0:
             self.throwUnexpectedToken()
 
+        # Check for BigInt literal (ES2020)
+        if not self.eof() and self.source[self.index] == 'n':
+            self.index += 1  # consume 'n'
+            return RawToken(
+                type=Token.BigIntLiteral,
+                value=int(num, 16),
+                raw='0x' + num + 'n',
+                lineNumber=self.lineNumber,
+                lineStart=self.lineStart,
+                start=start,
+                end=self.index
+            )
+
         if Character.isIdentifierStart(self.source[self.index]):
             self.throwUnexpectedToken()
 
@@ -761,6 +774,19 @@ class Scanner(object):
         if len(num) == 0:
             # only 0b or 0B
             self.throwUnexpectedToken()
+
+        # Check for BigInt literal (ES2020)
+        if not self.eof() and self.source[self.index] == 'n':
+            self.index += 1  # consume 'n'
+            return RawToken(
+                type=Token.BigIntLiteral,
+                value=int(num, 2),
+                raw='0b' + num + 'n',
+                lineNumber=self.lineNumber,
+                lineStart=self.lineStart,
+                start=start,
+                end=self.index
+            )
 
         if not self.eof():
             ch = self.source[self.index]
@@ -795,6 +821,26 @@ class Scanner(object):
         if not octal and len(num) == 0:
             # only 0o or 0O
             self.throwUnexpectedToken()
+
+        # Check for BigInt literal (ES2020)
+        if not self.eof() and self.source[self.index] == 'n':
+            self.index += 1  # consume 'n'
+            # Determine the correct raw format
+            if octal:
+                # Legacy octal like 0777 -> 0777n
+                raw = num + 'n'
+            else:
+                # New octal like 0o777 -> 0o777n or 0O777 -> 0O777n
+                raw = '0' + prefix + num + 'n'
+            return RawToken(
+                type=Token.BigIntLiteral,
+                value=int(num, 8),
+                raw=raw,
+                lineNumber=self.lineNumber,
+                lineStart=self.lineStart,
+                start=start,
+                end=self.index
+            )
 
         if Character.isIdentifierStart(self.source[self.index]) or Character.isDecimalDigit(self.source[self.index]):
             self.throwUnexpectedToken()
