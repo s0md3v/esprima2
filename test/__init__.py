@@ -196,6 +196,36 @@ class TestEsprima(unittest.TestCase):
         r = parse(script)
         self.assertIsInstance(r, Script)
 
+    def test_bigint_literals(self):
+        """Test BigInt literal parsing for all number bases"""
+        # Test decimal BigInt
+        result = toDict(parse('var x = 123n;'))
+        literal = result['body'][0]['declarations'][0]['init']
+        self.assertEqual(literal['type'], 'Literal')
+        self.assertEqual(literal['value'], 123)
+        self.assertEqual(literal['raw'], '123n')
+        
+        # Test hexadecimal BigInt
+        result = toDict(parse('var x = 0x9e3779b185ebca87n;'))
+        literal = result['body'][0]['declarations'][0]['init']
+        self.assertEqual(literal['type'], 'Literal')
+        self.assertEqual(literal['value'], 11400714785074694791)
+        self.assertEqual(literal['raw'], '0x9e3779b185ebca87n')
+        
+        # Test binary BigInt
+        result = toDict(parse('var x = 0b1010n;'))
+        literal = result['body'][0]['declarations'][0]['init']
+        self.assertEqual(literal['type'], 'Literal')
+        self.assertEqual(literal['value'], 10)
+        self.assertEqual(literal['raw'], '0b1010n')
+        
+        # Test octal BigInt
+        result = toDict(parse('var x = 0o777n;'))
+        literal = result['body'][0]['declarations'][0]['init']
+        self.assertEqual(literal['type'], 'Literal')
+        self.assertEqual(literal['value'], 511)
+        self.assertEqual(literal['raw'], '0o777n')
+
 
 # class TestThirdParty(unittest.TestCase):
 #     pass
