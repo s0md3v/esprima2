@@ -278,7 +278,9 @@ class ToDictVisitor(Visitor):
     def visit_dict(self, obj):
         items = []
         for k, item in obj.items():
-            if item is not None and not k.startswith('_'):
+            # Include None values for 'value' property (important for regex literals)
+            # or non-None values for non-private properties
+            if (k == 'value' or item is not None) and not k.startswith('_'):
                 # Skip 'optional' field when it's False (default value)
                 if k == 'optional' and item is False:
                     continue
@@ -288,7 +290,7 @@ class ToDictVisitor(Visitor):
         yield Visited(dict(items))
 
     def visit_SRE_Pattern(self, obj):
-        yield Visited({})
+        yield Visited(None)
 
     def visit_Pattern(self, obj):
-        yield Visited({})
+        yield Visited(None)
