@@ -607,7 +607,10 @@ class Parser(object):
                 self.scanner.index = self.startMarker.index
                 token = self.nextRegexToken()
                 raw = self.getTokenRaw(token)
-                expr = self.finalize(node, Node.RegexLiteral(token.regex, raw, token.pattern, token.flags))
+                # Use None (null) for non-tolerant mode when yield is allowed (primary expressions)
+                # Use token.regex ({}) for tolerant mode or when yield is not allowed (yield args, tolerant)
+                value = None if (not self.config.tolerant and self.context.allowYield) else token.regex
+                expr = self.finalize(node, Node.RegexLiteral(value, raw, token.pattern, token.flags))
             else:
                 expr = self.throwUnexpectedToken(self.nextToken())
 
