@@ -925,18 +925,22 @@ class Parser(object):
             pass
         elif typ is Syntax.SpreadElement:
             expr.type = Syntax.RestElement
+            expr.__class__ = Node.RestElement
             self.reinterpretExpressionAsPattern(expr.argument)
         elif typ is Syntax.ArrayExpression:
             expr.type = Syntax.ArrayPattern
+            expr.__class__ = Node.ArrayPattern
             for elem in expr.elements:
                 if elem is not None:
                     self.reinterpretExpressionAsPattern(elem)
         elif typ is Syntax.ObjectExpression:
             expr.type = Syntax.ObjectPattern
+            expr.__class__ = Node.ObjectPattern
             for prop in expr.properties:
                 self.reinterpretExpressionAsPattern(prop if prop.type is Syntax.SpreadElement else prop.value)
         elif typ is Syntax.AssignmentExpression:
             expr.type = Syntax.AssignmentPattern
+            expr.__class__ = Node.AssignmentPattern
             del expr.operator
             self.reinterpretExpressionAsPattern(expr.left)
         else:
