@@ -196,6 +196,22 @@ class TestEsprima(unittest.TestCase):
         r = parse(script)
         self.assertIsInstance(r, Script)
 
+    def test_reinterpret_as_pattern_python_class(self):
+        def arrow_param(src):
+            return parse(src).body[0].expression.arguments[0].params[0]
+
+        from esprima import nodes
+        cases = [
+            ("f(({x}) => x)",      nodes.ObjectPattern),
+            ("f(([x]) => x)",      nodes.ArrayPattern),
+            ("f(({x} = {}) => x)", nodes.AssignmentPattern),
+            ("f((...x) => x)",     nodes.RestElement),
+        ]
+        for src, expected_class in cases:
+            with self.subTest(src=src):
+                node = arrow_param(src)
+                self.assertIsInstance(node, expected_class)
+
     def test_bigint_literals(self):
         """Test BigInt literal parsing for all number bases"""
         # Test decimal BigInt
