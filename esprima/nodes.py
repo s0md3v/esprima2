@@ -119,7 +119,7 @@ class AwaitExpression(Node):
 
 class BinaryExpression(Node):
     def __init__(self, operator, left, right):
-        self.type = Syntax.LogicalExpression if operator in ('||', '&&') else Syntax.BinaryExpression
+        self.type = Syntax.LogicalExpression if operator in ('||', '&&', '??') else Syntax.BinaryExpression
         self.operator = operator
         self.left = left
         self.right = right

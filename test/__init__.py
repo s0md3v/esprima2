@@ -242,6 +242,160 @@ class TestEsprima(unittest.TestCase):
         self.assertEqual(literal['value'], 511)
         self.assertEqual(literal['raw'], '0o777n')
 
+    def test_nullish_coalescing(self):
+        result = toDict(parse('var x = a ?? b;'))
+        init = result['body'][0]['declarations'][0]['init']
+        self.assertEqual(init['type'], 'LogicalExpression')
+        self.assertEqual(init['operator'], '??')
+
+        with self.assertRaises(Error):
+            parse('a ?? b || c')
+        with self.assertRaises(Error):
+            parse('a && b ?? c')
+
+        result = toDict(parse('(a ?? b) || c'))
+        expr = result['body'][0]['expression']
+        self.assertEqual(expr['type'], 'LogicalExpression')
+        self.assertEqual(expr['operator'], '||')
+
+    def test_optional_chaining(self):
+        result = toDict(parse('a?.b.c'))
+        expr = result['body'][0]['expression']
+        self.assertEqual(expr['type'], 'ChainExpression')
+        self.assertEqual(expr['expression']['type'], 'MemberExpression')
+        self.assertFalse(expr['expression'].get('optional', False))
+        self.assertTrue(expr['expression']['object']['optional'])
+
+        result = toDict(parse('a?.()'))
+        expr = result['body'][0]['expression']
+        self.assertEqual(expr['type'], 'ChainExpression')
+        self.assertEqual(expr['expression']['type'], 'CallExpression')
+        self.assertTrue(expr['expression']['optional'])
+
+        with self.assertRaises(Error):
+            parse('a?.b.c = 1')
+
+    def test_numeric_separators(self):
+        cases = [
+            ('var x = 1_000;', 1000),
+            ('var x = 0xA_B;', 0xAB),
+            ('var x = 0b1010_0001;', 0b10100001),
+            ('var x = 0o7_7;', 0o77),
+            ('var x = 1_2n;', 12),
+            ('var x = 0xA_Bn;', 0xAB),
+            ('var x = 0b1010_0001n;', 0b10100001),
+            ('var x = 0o7_7n;', 0o77),
+        ]
+        for src, value in cases:
+            with self.subTest(src=src):
+                result = toDict(parse(src))
+                literal = result['body'][0]['declarations'][0]['init']
+                self.assertEqual(literal['value'], value)
+
+        invalid_cases = [
+            'var x = 0_1;',
+            'var x = 1._0;',
+            'var x = 0x_A;',
+            'var x = 0b_1;',
+            'var x = 0o_7;',
+            'var x = 0123n;',
+        ]
+        for src in invalid_cases:
+            with self.subTest(src=src):
+                with self.assertRaises(Error):
+                    parse(src)
+
+    def test_computed_class_fields(self):
+        result = toDict(parse('class A { [x] = 1; ["y"]; [z]\nw }'))
+        elements = result['body'][0]['body']['body']
+        self.assertEqual(elements[0]['type'], 'FieldDefinition')
+        self.assertTrue(elements[0]['computed'])
+        self.assertEqual(elements[0]['key']['name'], 'x')
+        self.assertEqual(elements[0]['value']['value'], 1)
+        self.assertEqual(elements[1]['type'], 'FieldDefinition')
+        self.assertTrue(elements[1]['computed'])
+        self.assertIsNone(elements[1].get('value'))
+        self.assertEqual(elements[2]['type'], 'FieldDefinition')
+        self.assertTrue(elements[2]['computed'])
+        self.assertEqual(elements[3]['type'], 'FieldDefinition')
+        self.assertEqual(elements[3]['key']['name'], 'w')
+
+        invalid_cases = [
+            'class C { [x] y }',
+            'class C { "x" async(){} }',
+            'class C { 1 [x] }',
+            'class C { true async(){} }',
+            'class C { [x] = 1 y }',
+        ]
+        for src in invalid_cases:
+            with self.subTest(src=src):
+                with self.assertRaises(Error):
+                    parse(src)
+
+    def test_async_class_elements(self):
+        valid_fields = [
+            'class C { async; }',
+            'class C { async = 1; }',
+            'class C { static async = 1; }',
+        ]
+        for src in valid_fields:
+            with self.subTest(src=src):
+                element = toDict(parse(src))['body'][0]['body']['body'][0]
+                self.assertEqual(element['type'], 'FieldDefinition')
+                self.assertEqual(element['key']['name'], 'async')
+
+        valid_methods = [
+            'class C { async x(){} }',
+            'class C { async "x"(){} }',
+            'class C { async [x](){} }',
+            'class C { static async true(){} }',
+        ]
+        for src in valid_methods:
+            with self.subTest(src=src):
+                element = toDict(parse(src))['body'][0]['body']['body'][0]
+                self.assertEqual(element['type'], 'MethodDefinition')
+                self.assertTrue(element['value']['async'])
+
+        invalid_cases = [
+            'class C { async x; }',
+            'class C { async "x"; }',
+            'class C { async 1 = 2; }',
+            'class C { async [x]; }',
+            'class C { static async true; }',
+        ]
+        for src in invalid_cases:
+            with self.subTest(src=src):
+                with self.assertRaises(Error):
+                    parse(src)
+
+    def test_constructor_class_fields(self):
+        invalid_cases = [
+            'class C { constructor; }',
+            'class C { constructor = 1; }',
+            'class C { "constructor"; }',
+            'class C { "constructor" = 1; }',
+            'class C { static constructor; }',
+            'class C { static constructor = 1; }',
+            'class C { static "constructor"; }',
+            'class C { static "constructor" = 1; }',
+        ]
+        for src in invalid_cases:
+            with self.subTest(src=src):
+                with self.assertRaises(Error):
+                    parse(src)
+
+        valid_cases = [
+            'class C { constructor(){} }',
+            'class C { "constructor"(){} }',
+            'class C { static constructor(){} }',
+            'class C { static "constructor"(){} }',
+            'class C { ["constructor"]; }',
+            'class C { static ["constructor"] = 1; }',
+        ]
+        for src in valid_cases:
+            with self.subTest(src=src):
+                parse(src)
+
 
 # class TestThirdParty(unittest.TestCase):
 #     pass

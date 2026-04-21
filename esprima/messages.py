@@ -32,6 +32,7 @@ class Messages:
     BadSetterArity = "Setter must have exactly one formal parameter"
     BadSetterRestParameter = "Setter function argument must not be a rest parameter"
     ConstructorIsAsync = "Class constructor may not be an async method"
+    ConstructorField = "Classes may not have a field named 'constructor'"
     ConstructorSpecialMethod = "Class constructor may not be an accessor"
     DeclarationMissingInitializer = "Missing initializer in %0 declaration"
     DefaultRestParameter = "Unexpected token ="

@@ -723,18 +723,30 @@ class Scanner(object):
 
     # https://tc39.github.io/ecma262/#sec-literals-numeric-literals
 
-    def scanHexLiteral(self, start):
+    def scanNumericSeparatorDigits(self, isDigit, allowEmpty=False, seenDigit=False):
         num = ''
 
         while not self.eof():
-            if not Character.isHexDigit(self.source[self.index]):
+            ch = self.source[self.index]
+            if isDigit(ch):
+                num += ch
+                self.index += 1
+                seenDigit = True
+            elif ch == '_':
+                next = self.source[self.index + 1] if self.index + 1 < self.length else ''
+                if not seenDigit or not isDigit(next):
+                    self.throwUnexpectedToken()
+                self.index += 1
+            else:
                 break
 
-            num += self.source[self.index]
-            self.index += 1
-
-        if len(num) == 0:
+        if not allowEmpty and not num:
             self.throwUnexpectedToken()
+
+        return num
+
+    def scanHexLiteral(self, start):
+        num = self.scanNumericSeparatorDigits(Character.isHexDigit)
 
         # Check for BigInt literal (ES2020)
         if not self.eof() and self.source[self.index] == 'n':
@@ -762,19 +774,7 @@ class Scanner(object):
         )
 
     def scanBinaryLiteral(self, start):
-        num = ''
-
-        while not self.eof():
-            ch = self.source[self.index]
-            if ch != '0' and ch != '1':
-                break
-
-            num += self.source[self.index]
-            self.index += 1
-
-        if len(num) == 0:
-            # only 0b or 0B
-            self.throwUnexpectedToken()
+        num = self.scanNumericSeparatorDigits(lambda ch: ch == '0' or ch == '1')
 
         # Check for BigInt literal (ES2020)
         if not self.eof() and self.source[self.index] == 'n':
@@ -810,29 +810,25 @@ class Scanner(object):
         if Character.isOctalDigit(prefix[0]):
             octal = True
             num = '0' + self.source[self.index]
-        self.index += 1
-
-        while not self.eof():
-            if not Character.isOctalDigit(self.source[self.index]):
-                break
-
-            num += self.source[self.index]
             self.index += 1
+            while not self.eof():
+                if not Character.isOctalDigit(self.source[self.index]):
+                    break
 
-        if not octal and len(num) == 0:
-            # only 0o or 0O
-            self.throwUnexpectedToken()
+                num += self.source[self.index]
+                self.index += 1
+        else:
+            self.index += 1
+            num = self.scanNumericSeparatorDigits(Character.isOctalDigit)
 
         # Check for BigInt literal (ES2020)
         if not self.eof() and self.source[self.index] == 'n':
+            if octal:
+                self.throwUnexpectedToken()
             self.index += 1  # consume 'n'
             # Determine the correct raw format
-            if octal:
-                # Legacy octal like 0777 -> 0777n
-                raw = num + 'n'
-            else:
-                # New octal like 0o777 -> 0o777n or 0O777 -> 0O777n
-                raw = '0' + prefix + num + 'n'
+            # New octal like 0o777 -> 0o777n or 0O777 -> 0O777n
+            raw = '0' + prefix + num + 'n'
             return RawToken(
                 type=Token.BigIntLiteral,
                 value=int(num, 8),
@@ -898,34 +894,17 @@ class Scanner(object):
                     if self.isImplicitOctalLiteral():
                         return self.scanOctalLiteral(ch, start)
 
-            while Character.isDecimalDigit(self.source[self.index]) or self.source[self.index] == '_':  # ES2021 numeric separators always enabled
-                ch = self.source[self.index]
                 if ch == '_':
-                    # ES2021: Numeric separator - validate placement
-                    next_char = self.source[self.index + 1] if self.index + 1 < self.length else ''
-                    if not Character.isDecimalDigit(next_char):
-                        self.throwUnexpectedToken()
-                    self.index += 1  # Skip separator
-                else:
-                    num += ch
-                    self.index += 1
+                    self.throwUnexpectedToken()
+
+            num += self.scanNumericSeparatorDigits(Character.isDecimalDigit, allowEmpty=True, seenDigit=bool(num))
 
             ch = self.source[self.index]
 
         if ch == '.':
             num += self.source[self.index]
             self.index += 1
-            while Character.isDecimalDigit(self.source[self.index]) or self.source[self.index] == '_':  # ES2021 numeric separators always enabled
-                ch = self.source[self.index]
-                if ch == '_':
-                    # ES2021: Numeric separator in fractional part
-                    next_char = self.source[self.index + 1] if self.index + 1 < self.length else ''
-                    if not Character.isDecimalDigit(next_char):
-                        self.throwUnexpectedToken()
-                    self.index += 1  # Skip separator
-                else:
-                    num += ch
-                    self.index += 1
+            num += self.scanNumericSeparatorDigits(Character.isDecimalDigit, allowEmpty=True)
 
             ch = self.source[self.index]
 
@@ -939,17 +918,7 @@ class Scanner(object):
                 self.index += 1
 
             if Character.isDecimalDigit(self.source[self.index]):
-                while Character.isDecimalDigit(self.source[self.index]) or self.source[self.index] == '_':  # ES2021 numeric separators always enabled
-                    ch = self.source[self.index]
-                    if ch == '_':
-                        # ES2021: Numeric separator in exponent
-                        next_char = self.source[self.index + 1] if self.index + 1 < self.length else ''
-                        if not Character.isDecimalDigit(next_char):
-                            self.throwUnexpectedToken()
-                        self.index += 1  # Skip separator
-                    else:
-                        num += ch
-                        self.index += 1
+                num += self.scanNumericSeparatorDigits(Character.isDecimalDigit, allowEmpty=True)
 
             else:
                 self.throwUnexpectedToken()
@@ -957,7 +926,7 @@ class Scanner(object):
         # Check for BigInt literal (ES2020)
         if self.source[self.index] == 'n':
             # BigInt literals cannot have decimals or exponents
-            if '.' in num or 'e' in num.lower():
+            if '.' in num or 'e' in num.lower() or (len(num) > 1 and num[0] == '0'):
                 self.throwUnexpectedToken()
             
             # ES2020+ BigInt support - always enabled

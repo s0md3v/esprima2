@@ -1164,6 +1164,7 @@ class Parser(object):
     def parseLeftHandSideExpressionAllowCall(self):
         startToken = self.lookahead
         maybeAsync = self.matchContextualKeyword('async')
+        isChain = False
 
         previousAllowIn = self.context.allowIn
         self.context.allowIn = True
@@ -1180,12 +1181,13 @@ class Parser(object):
         while True:
             if self.match('.'):
                 self.context.isBindingElement = False
-                self.context.isAssignmentTarget = True
+                self.context.isAssignmentTarget = not isChain
                 self.expect('.')
                 property = self.parsePropertyName()  # Can handle private identifiers
                 expr = self.finalize(self.startNode(startToken), Node.StaticMemberExpression(expr, property))
 
             elif self.match('?.'):  # ES2020 optional chaining - always enabled
+                isChain = True
                 self.context.isBindingElement = False
                 self.context.isAssignmentTarget = False  # Optional chaining is not a valid assignment target
                 self.expect('?.')
@@ -1221,7 +1223,7 @@ class Parser(object):
                     expr = Node.AsyncArrowParameterPlaceHolder(args)
             elif self.match('['):
                 self.context.isBindingElement = False
-                self.context.isAssignmentTarget = True
+                self.context.isAssignmentTarget = not isChain
                 self.expect('[')
                 property = self.isolateCoverGrammar(self.parseExpression)
                 self.expect(']')
@@ -1235,6 +1237,10 @@ class Parser(object):
                 break
 
         self.context.allowIn = previousAllowIn
+
+        if isChain:
+            self.context.isAssignmentTarget = False
+            expr = self.finalize(self.startNode(startToken), Node.ChainExpression(expr))
 
         return expr
 
@@ -1251,6 +1257,7 @@ class Parser(object):
         assert self.context.allowIn, 'callee of new expression always allow in keyword.'
 
         node = self.startNode(self.lookahead)
+        isChain = False
         if self.matchKeyword('super') and self.context.inFunctionBody:
             expr = self.parseSuper()
         else:
@@ -1259,7 +1266,7 @@ class Parser(object):
         while True:
             if self.match('['):
                 self.context.isBindingElement = False
-                self.context.isAssignmentTarget = True
+                self.context.isAssignmentTarget = not isChain
                 self.expect('[')
                 property = self.isolateCoverGrammar(self.parseExpression)
                 self.expect(']')
@@ -1267,12 +1274,13 @@ class Parser(object):
 
             elif self.match('.'):
                 self.context.isBindingElement = False
-                self.context.isAssignmentTarget = True
+                self.context.isAssignmentTarget = not isChain
                 self.expect('.')
                 property = self.parsePropertyName()  # Can handle private identifiers
                 expr = self.finalize(node, Node.StaticMemberExpression(expr, property))
 
             elif self.match('?.'):  # ES2020 optional chaining - always enabled
+                isChain = True
                 self.context.isBindingElement = False
                 self.context.isAssignmentTarget = False  # Optional chaining is not a valid assignment target
                 self.expect('?.')
@@ -1293,6 +1301,10 @@ class Parser(object):
 
             else:
                 break
+
+        if isChain:
+            self.context.isAssignmentTarget = False
+            expr = self.finalize(node, Node.ChainExpression(expr))
 
         return expr
 
@@ -1398,6 +1410,8 @@ class Parser(object):
         token = self.lookahead
         prec = self.binaryPrecedence(token)
         if prec > 0:
+            hasNullish = token.value == '??'
+            hasBoolean = token.value in ('&&', '||')
             self.nextToken()
 
             self.context.isAssignmentTarget = False
@@ -1413,6 +1427,12 @@ class Parser(object):
                 prec = self.binaryPrecedence(self.lookahead)
                 if prec <= 0:
                     break
+
+                op = self.lookahead.value
+                if (hasNullish and op in ('&&', '||')) or (hasBoolean and op == '??'):
+                    self.throwUnexpectedToken(self.lookahead)
+                hasNullish = hasNullish or op == '??'
+                hasBoolean = hasBoolean or op in ('&&', '||')
 
                 # Reduce: make a binary expression from the three topmost entries.
                 while len(stack) > 2 and prec <= precedences[-1]:
@@ -2891,6 +2911,7 @@ class Parser(object):
         computed = False
         isStatic = False
         isAsync = False
+        requireFieldSeparator = False
 
         if self.match('*'):
             self.nextToken()
@@ -2916,10 +2937,10 @@ class Parser(object):
                 else:
                     key = self.parseObjectPropertyKey()
             if token.type is Token.Identifier and not self.hasLineTerminator and token.value == 'async':
-                punctuator = self.lookahead.value
-                if punctuator != ':' and punctuator != '(' and punctuator != '*':
+                if self.qualifiedPropertyName(self.lookahead):
                     isAsync = True
                     token = self.lookahead
+                    computed = self.match('[')
                     key = self.parseObjectPropertyKey()
                     if token.type is Token.Identifier and token.value == 'constructor':
                         self.tolerateUnexpectedToken(token, Messages.ConstructorIsAsync)
@@ -2937,7 +2958,7 @@ class Parser(object):
                 computed = self.match('[')
                 key = self.parseObjectPropertyKey()
                 value = self.parseSetterMethod()
-            elif self.config.classProperties and not self.match('('):
+            elif self.config.classProperties and not isAsync and not self.match('('):
                 kind = 'init'
                 id = self.finalize(node, Node.Identifier(token.value))
                 if self.match('='):
@@ -2962,6 +2983,24 @@ class Parser(object):
                 kind = 'method'
                 value = self.parsePropertyMethodFunction()
 
+        elif (
+            self.config.classProperties and key and not isAsync and not self.match('(') and
+            (
+                computed or token.type in (
+                    Token.StringLiteral,
+                    Token.NumericLiteral,
+                    Token.BigIntLiteral,
+                    Token.BooleanLiteral,
+                    Token.NullLiteral,
+                )
+            )
+        ):
+            kind = 'init'
+            requireFieldSeparator = True
+            if self.match('='):
+                self.nextToken()
+                value = self.parseAssignmentExpression()
+
         if not kind and key and self.match('('):
             kind = 'method'
             value = self.parsePropertyMethodAsyncFunction() if isAsync else self.parsePropertyMethodFunction()
@@ -2972,6 +3011,9 @@ class Parser(object):
         if not computed:
             if isStatic and self.isPropertyKey(key, 'prototype'):
                 self.throwUnexpectedToken(token, Messages.StaticPrototype)
+            if self.isPropertyKey(key, 'constructor'):
+                if kind == 'init':
+                    self.throwUnexpectedToken(token, Messages.ConstructorField)
             if not isStatic and self.isPropertyKey(key, 'constructor'):
                 if kind != 'method' or (value and value.generator):
                     self.throwUnexpectedToken(token, Messages.ConstructorSpecialMethod)
@@ -2985,6 +3027,8 @@ class Parser(object):
             return self.finalize(node, Node.MethodDefinition(key, computed, value, kind, isStatic))
 
         else:
+            if requireFieldSeparator and not self.match(';', '}') and not self.hasLineTerminator:
+                self.throwUnexpectedToken(self.lookahead)
             return self.finalize(node, Node.FieldDefinition(key, computed, value, kind, isStatic))
 
     def parseClassElementList(self):

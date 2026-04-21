@@ -19,6 +19,14 @@
 pip install esprima2
 ```
 
+## Development
+
+Run the test suite with:
+
+```shell
+python3 -m test
+```
+
 ## Usage
 
 Esprima can be used to perform [lexical analysis](https://en.wikipedia.org/wiki/Lexical_analysis>)
