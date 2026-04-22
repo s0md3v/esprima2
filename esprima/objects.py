@@ -23,10 +23,62 @@
 
 from __future__ import absolute_import, unicode_literals
 
+from .compat import unicode
+
+
+try:
+    RecursionError
+except NameError:
+    RecursionError = RuntimeError
+
+
+_TO_DICT_KEY_MAP = {
+    'isAsync': 'async',
+    'allowAwait': 'await',
+}
+
 
 def toDict(value):
-    from .visitor import ToDictVisitor
-    return ToDictVisitor().visit(value)
+    try:
+        return _toDict(value, set())
+    except RecursionError:
+        from .visitor import ToDictVisitor
+        return ToDictVisitor().visit(value)
+
+
+def _toDict(value, active):
+    if isinstance(value, Object):
+        value_id = id(value)
+        if value_id in active:
+            return {
+                'error': "Infinite recursion detected...",
+            }
+        active.add(value_id)
+        try:
+            return _toDict(value.__dict__, active)
+        finally:
+            active.remove(value_id)
+
+    if isinstance(value, list):
+        return [_toDict(item, active) for item in value]
+
+    if isinstance(value, dict):
+        items = []
+        for k, item in value.items():
+            if item is not None and not k.startswith('_'):
+                if k == 'optional' and item is False:
+                    continue
+                key = unicode(k)
+                items.append((
+                    _TO_DICT_KEY_MAP.get(key, key),
+                    _toDict(item, active),
+                ))
+        return dict(items)
+
+    if value.__class__.__name__ in ('SRE_Pattern', 'Pattern'):
+        return {}
+
+    return value
 
 
 class Array(list):
@@ -35,8 +87,7 @@ class Array(list):
 
 class Object(object):
     def toDict(self):
-        from .visitor import ToDictVisitor
-        return ToDictVisitor().visit(self)
+        return toDict(self)
 
     def __repr__(self):
         from .visitor import ReprVisitor
