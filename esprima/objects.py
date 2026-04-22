@@ -21,15 +21,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import absolute_import, unicode_literals
 
-from .compat import unicode
-
-
-try:
-    RecursionError
-except NameError:
-    RecursionError = RuntimeError
 
 
 _TO_DICT_KEY_MAP = {
@@ -68,7 +60,7 @@ def _toDict(value, active):
             if item is not None and not k.startswith('_'):
                 if k == 'optional' and item is False:
                     continue
-                key = unicode(k)
+                key = str(k)
                 items.append((
                     _TO_DICT_KEY_MAP.get(key, key),
                     _toDict(item, active),

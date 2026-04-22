@@ -21,9 +21,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import unicode_literals
 
-from .compat import unicode
 
 
 class Error(Exception):
@@ -40,7 +38,7 @@ class Error(Exception):
         return '%s: %s' % (self.__class__.__name__, self)
 
     def toDict(self):
-        d = dict((unicode(k), v) for k, v in self.__dict__.items() if v is not None)
+        d = dict((str(k), v) for k, v in self.__dict__.items() if v is not None)
         d['message'] = self.toString()
         return d
 

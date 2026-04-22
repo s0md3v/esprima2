@@ -21,14 +21,12 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import absolute_import, unicode_literals
 
 import re
 import unicodedata
 import warnings
 
 from .objects import Object
-from .compat import xrange, unicode, uchr, uord
 from .character import Character, HEX_CONV
 from .messages import Messages
 from .token import Token
@@ -231,7 +229,7 @@ REGEXP_IDENTITY_ESCAPE_CHARACTERS = set('^$\\.*+?()[]{}|/')
 
 class Scanner(object):
     def __init__(self, code, handler):
-        self.source = unicode(code) + '\x00'
+        self.source = str(code) + '\x00'
         self.errorHandler = handler
         self.trackComment = False
         self.isModule = False
@@ -503,13 +501,13 @@ class Scanner(object):
     ))
 
     def codePointAt(self, i):
-        return uord(self.source[i:i + 2])
+        return ord(self.source[i])
 
     def scanHexEscape(self, prefix):
         length = 4 if prefix == 'u' else 2
         code = 0
 
-        for i in xrange(length):
+        for i in range(length):
             if not self.eof() and Character.isHexDigit(self.source[self.index]):
                 ch = self.source[self.index]
                 self.index += 1
@@ -517,7 +515,7 @@ class Scanner(object):
             else:
                 return None
 
-        return uchr(code)
+        return chr(code)
 
     def scanUnicodeCodePointEscape(self):
         ch = self.source[self.index]
@@ -982,7 +980,7 @@ class Scanner(object):
     def isImplicitOctalLiteral(self):
         # Implicit octal, unless there is a non-octal digit.
         # (Annex B.1.1 on Numeric Literals)
-        for i in xrange(self.index + 1, self.length):
+        for i in range(self.index + 1, self.length):
             ch = self.source[i]
             if ch in '89':
                 return False
@@ -1150,7 +1148,7 @@ class Scanner(object):
                             octToDec = self.octalToDecimal(ch)
 
                             octal = octToDec.octal or octal
-                            str += uchr(octToDec.code)
+                            str += chr(octToDec.code)
                         else:
                             str += ch
 
@@ -2033,7 +2031,7 @@ class Scanner(object):
 
     def sanitizeRegExpCodePoint(self, codePoint):
         if codePoint > 0xFFFF:
-            return uchr(codePoint)
+            return chr(codePoint)
         if codePoint <= 0xFF:
             return '\\x%02x' % codePoint
         return '\\u%04x' % codePoint
@@ -2937,7 +2935,10 @@ class Scanner(object):
             if codePoint > 0x10FFFF:
                 self.tolerateUnexpectedToken(Messages.InvalidRegExp)
             elif codePoint <= 0xFFFF:
-                return uchr(codePoint)
+                ch = chr(codePoint)
+                if ch in REGEXP_IDENTITY_ESCAPE_CHARACTERS:
+                    return re.escape(ch)
+                return ch
             return astralSubstitute
 
         pyflags = 0

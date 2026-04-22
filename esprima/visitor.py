@@ -21,14 +21,12 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import unicode_literals
 
 import json
 import types
 from collections import deque
 
 from .objects import Object
-from .compat import PY3, unicode
 
 
 class VisitRecursionError(Exception):
@@ -230,14 +228,9 @@ class ReprVisitor(Visitor):
 
         yield Visited(value_repr)
 
-    if PY3:
-        def visit_str(self, obj):
-            value_repr = json.dumps(obj)
-            yield Visited(value_repr)
-    else:
-        def visit_unicode(self, obj):
-            value_repr = json.dumps(obj)
-            yield Visited(value_repr)
+    def visit_str(self, obj):
+        value_repr = json.dumps(obj)
+        yield Visited(value_repr)
 
     def visit_SourceLocation(self, obj):
         old_indent, self.indent = self.indent, ""
@@ -283,7 +276,7 @@ class ToDictVisitor(Visitor):
                 if k == 'optional' and item is False:
                     continue
                 v = yield item
-                k = unicode(k)
+                k = str(k)
                 items.append((self.map.get(k, k), v))
         yield Visited(dict(items))
 

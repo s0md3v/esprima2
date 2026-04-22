@@ -21,10 +21,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import absolute_import, unicode_literals
 
 from .objects import Object
-from .compat import basestring, unicode
 from .utils import format
 from .error_handler import ErrorHandler
 from .messages import Messages
@@ -222,7 +220,7 @@ class Parser(object):
         else:
             value = 'ILLEGAL'
 
-        msg = msg.replace('%0', unicode(value), 1)
+        msg = msg.replace('%0', str(value), 1)
 
         if token and isinstance(token.lineNumber, int):
             index = token.start
@@ -2787,7 +2785,7 @@ class Parser(object):
             statement = self.parseDirective()
             body.append(statement)
             directive = statement.directive
-            if not isinstance(directive, basestring):
+            if not isinstance(directive, str):
                 break
 
             if directive == 'use strict':

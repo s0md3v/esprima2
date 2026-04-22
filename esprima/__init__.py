@@ -21,9 +21,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import absolute_import
 
-version = '5.1.0'
-__version__ = (5, 1, 0)
+version = '6.0.0'
+__version__ = (6, 0, 0)
 
 from .esprima import *  # NOQA

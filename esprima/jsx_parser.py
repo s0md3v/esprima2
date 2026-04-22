@@ -21,9 +21,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import absolute_import, unicode_literals
 
-from .compat import uchr
 from .character import Character
 from . import jsx_nodes as JSXNode
 from .jsx_syntax import JSXSyntax
@@ -151,9 +149,9 @@ class JSXParser(Parser):
             # e.g. '&#x41;' becomes just '#x41'
             st = result[1:-1]
             if numeric and len(st) > 1:
-                result = uchr(int(st[1:], 10))
+                result = chr(int(st[1:], 10))
             elif hex and len(st) > 2:
-                result = uchr(int(st[2:], 16))
+                result = chr(int(st[2:], 16))
             elif not numeric and not hex and st in XHTMLEntities:
                 result = XHTMLEntities[st]
 

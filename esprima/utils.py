@@ -21,18 +21,16 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import absolute_import, unicode_literals
 
 import re
 
-from .compat import unicode
 
 
 def format(messageFormat, *args):
     def formatter(m):
         formatter.idx += 1
         assert formatter.idx < len(args), 'Message reference must be in range'
-        return unicode(args[formatter.idx])
+        return str(args[formatter.idx])
     formatter.idx = -1
     return format.re.sub(formatter, messageFormat)
 
