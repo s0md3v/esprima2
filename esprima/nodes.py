@@ -228,9 +228,13 @@ class EmptyStatement(Node):
 
 
 class ExportAllDeclaration(Node):
-    def __init__(self, source):
+    def __init__(self, source, attributes=None, exported=None):
         self.type = Syntax.ExportAllDeclaration
         self.source = source
+        if exported is not None:
+            self.exported = exported
+        if attributes is not None:
+            self.attributes = attributes
 
 
 class ExportDefaultDeclaration(Node):
@@ -240,11 +244,13 @@ class ExportDefaultDeclaration(Node):
 
 
 class ExportNamedDeclaration(Node):
-    def __init__(self, declaration, specifiers, source):
+    def __init__(self, declaration, specifiers, source, attributes=None):
         self.type = Syntax.ExportNamedDeclaration
         self.declaration = declaration
         self.specifiers = specifiers
         self.source = source
+        if attributes is not None:
+            self.attributes = attributes
 
 
 class ExportSpecifier(Node):

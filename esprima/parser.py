@@ -3211,7 +3211,7 @@ class Parser(object):
             self.nextToken()
             src = self.parseModuleSpecifier()
         
-        # Parse import assertions (ES2022) or attributes (ES2023)
+        # Parse import assertions (ES2022) or attributes (ES2025)
         assertions = None
         attributes = None
         
@@ -3219,10 +3219,8 @@ class Parser(object):
             # ES2022 import assertions: import ... assert { type: "json" }
             self.nextToken()
             assertions = self.parseImportAssertions()
-        elif self.matchKeyword('with') or self.matchContextualKeyword('with'):
-            # ES2023 import attributes: import ... with { type: "json" }
-            self.nextToken()
-            attributes = self.parseImportAttributes()
+        else:
+            attributes = self.parseWithClause()
             
         self.consumeSemicolon()
 
@@ -3236,9 +3234,21 @@ class Parser(object):
         # Parse { type: "json", ... }
         return self.parseImportAttributeList()
 
+    def parseModuleExportName(self):
+        if self.lookahead.type == Token.StringLiteral:
+            return self.parsePrimaryExpression()
+        return self.parseIdentifierName()
+
+    def parseWithClause(self):
+        if self.matchKeyword('with') or self.matchContextualKeyword('with'):
+            self.nextToken()
+            return self.parseImportAttributes()
+        return None
+
     def parseImportAttributeList(self):
         # Parse { key: "value", key2: "value2" }
         attributes = []
+        keys = set()
         
         self.expect('{')
         
@@ -3248,13 +3258,17 @@ class Parser(object):
                 if self.match('}'):
                     break
             
-            # Parse key
-            if self.lookahead.type == Token.Identifier:
+            if self.isIdentifierName(self.lookahead):
                 key = self.parseIdentifierName()
             elif self.lookahead.type == Token.StringLiteral:
                 key = self.parsePrimaryExpression()
             else:
                 self.throwUnexpectedToken(self.lookahead)
+
+            keyName = key.name if key.type == Syntax.Identifier else key.value
+            if keyName in keys:
+                self.throwError('Duplicate import attribute key')
+            keys.add(keyName)
             
             self.expect(':')
             
@@ -3277,11 +3291,11 @@ class Parser(object):
     def parseExportSpecifier(self):
         node = self.createNode()
 
-        local = self.parseIdentifierName()
+        local = self.parseModuleExportName()
         exported = local
         if self.matchContextualKeyword('as'):
             self.nextToken()
-            exported = self.parseIdentifierName()
+            exported = self.parseModuleExportName()
 
         return self.finalize(node, Node.ExportSpecifier(local, exported))
 
@@ -3333,13 +3347,18 @@ class Parser(object):
         elif self.match('*'):
             # export * from 'foo'
             self.nextToken()
+            exported = None
+            if self.matchContextualKeyword('as'):
+                self.nextToken()
+                exported = self.parseModuleExportName()
             if not self.matchContextualKeyword('from'):
                 message = Messages.UnexpectedToken if self.lookahead.value else Messages.MissingFromClause
                 self.throwError(message, self.lookahead.value)
             self.nextToken()
             src = self.parseModuleSpecifier()
+            attributes = self.parseWithClause()
             self.consumeSemicolon()
-            exportDeclaration = self.finalize(node, Node.ExportAllDeclaration(src))
+            exportDeclaration = self.finalize(node, Node.ExportAllDeclaration(src, attributes, exported))
 
         elif self.lookahead.type is Token.Keyword:
             # export var f = 1
@@ -3366,6 +3385,7 @@ class Parser(object):
         else:
             specifiers = []
             source = None
+            attributes = None
             isExportFromIdentifier = False
 
             expectSpecifiers = True
@@ -3380,7 +3400,9 @@ class Parser(object):
                 self.expect('{')
                 while not self.match('}'):
                     isExportFromIdentifier = isExportFromIdentifier or self.matchKeyword('default')
-                    specifiers.append(self.parseExportSpecifier())
+                    specifier = self.parseExportSpecifier()
+                    isExportFromIdentifier = isExportFromIdentifier or specifier.local.type != Syntax.Identifier
+                    specifiers.append(specifier)
                     if not self.match('}'):
                         self.expect(',')
                 self.expect('}')
@@ -3390,6 +3412,7 @@ class Parser(object):
                 # export {foo} from 'foo'
                 self.nextToken()
                 source = self.parseModuleSpecifier()
+                attributes = self.parseWithClause()
                 self.consumeSemicolon()
             elif isExportFromIdentifier:
                 # export {default}; # missing fromClause
@@ -3398,6 +3421,6 @@ class Parser(object):
             else:
                 # export {foo}
                 self.consumeSemicolon()
-            exportDeclaration = self.finalize(node, Node.ExportNamedDeclaration(None, specifiers, source))
+            exportDeclaration = self.finalize(node, Node.ExportNamedDeclaration(None, specifiers, source, attributes))
 
         return exportDeclaration

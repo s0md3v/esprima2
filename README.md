@@ -1,4 +1,4 @@
-**esprima2** is a javascript parser written in python. It works for ECMAScript 2024 and has ~1500 unit tests.
+**esprima2** is a javascript parser written in python. It supports syntax up to ECMA 2025 and has ~1500 unit tests.
 
 #### Credits
 1. [Ariya Hidayat](https://x.com/ariyahidayat) created the original [esprima](https://github.com/jquery/esprima) library.
@@ -7,7 +7,7 @@
 4. With `esprima2`, I added the missing syntax support and now we can parse modern javascript.
 
 ## Features
--  Full support for [ECMAScript 2024](https://www.ecma-international.org/publications-and-standards/standards/ecma-262/>)
+-  Syntax support up to [ECMA 2025](https://www.ecma-international.org/publications-and-standards/standards/ecma-262/)
 -  Sensible [syntax tree format](https://github.com/estree/estree/blob/master/es5.md) as standardized by [ESTree project](https://github.com/estree/estree)
 -  Experimental support for [JSX](https://facebook.github.io/jsx/), a syntax extension for [React](https://facebook.github.io/react/)
 -  Optional tracking of syntax node location (index-based and line-column)

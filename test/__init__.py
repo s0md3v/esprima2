@@ -28,9 +28,10 @@ import re
 import json
 import glob
 import fnmatch
+import subprocess
 import unittest
 
-from esprima import parse, tokenize, Error, toDict
+from esprima import parse, parseModule, tokenize, Error, toDict
 from esprima.nodes import Script
 
 BASE_DIR = os.path.dirname(__file__)
@@ -395,6 +396,540 @@ class TestEsprima(unittest.TestCase):
         for src in valid_cases:
             with self.subTest(src=src):
                 parse(src)
+
+    def test_ecma2025_import_attributes_on_exports(self):
+        named = toDict(parseModule('export { foo } from "./data.json" with { type: "json" };'))
+        declaration = named['body'][0]
+        self.assertEqual(declaration['type'], 'ExportNamedDeclaration')
+        self.assertEqual(declaration['source']['value'], './data.json')
+        self.assertEqual(declaration['attributes'][0]['key']['name'], 'type')
+        self.assertEqual(declaration['attributes'][0]['value']['value'], 'json')
+
+        batch = toDict(parseModule('export * from "./data.json" with { type: "json" };'))
+        declaration = batch['body'][0]
+        self.assertEqual(declaration['type'], 'ExportAllDeclaration')
+        self.assertEqual(declaration['source']['value'], './data.json')
+        self.assertEqual(declaration['attributes'][0]['key']['name'], 'type')
+        self.assertEqual(declaration['attributes'][0]['value']['value'], 'json')
+
+        namespace = toDict(parseModule('export * as data from "./data.json" with { type: "json" };'))
+        declaration = namespace['body'][0]
+        self.assertEqual(declaration['type'], 'ExportAllDeclaration')
+        self.assertEqual(declaration['exported']['name'], 'data')
+        self.assertEqual(declaration['attributes'][0]['value']['value'], 'json')
+
+        string_namespace = toDict(parseModule('export * as "data" from "./data.json";'))
+        declaration = string_namespace['body'][0]
+        self.assertEqual(declaration['type'], 'ExportAllDeclaration')
+        self.assertEqual(declaration['exported']['type'], 'Literal')
+        self.assertEqual(declaration['exported']['value'], 'data')
+
+        string_exported_name = toDict(parseModule('const foo = 1; export { foo as "bar" };'))
+        specifier = string_exported_name['body'][1]['specifiers'][0]
+        self.assertEqual(specifier['local']['name'], 'foo')
+        self.assertEqual(specifier['exported']['type'], 'Literal')
+        self.assertEqual(specifier['exported']['value'], 'bar')
+
+        string_local_reexport = toDict(parseModule('export { "foo" as bar } from "./m.js" with { type: "json" };'))
+        declaration = string_local_reexport['body'][0]
+        specifier = declaration['specifiers'][0]
+        self.assertEqual(specifier['local']['type'], 'Literal')
+        self.assertEqual(specifier['local']['value'], 'foo')
+        self.assertEqual(specifier['exported']['name'], 'bar')
+        self.assertEqual(declaration['attributes'][0]['key']['name'], 'type')
+
+        string_named_reexport = toDict(parseModule('export { "foo" } from "./m.js";'))
+        specifier = string_named_reexport['body'][0]['specifiers'][0]
+        self.assertEqual(specifier['local']['value'], 'foo')
+        self.assertEqual(specifier['exported']['value'], 'foo')
+
+        keyword_attribute = toDict(parseModule('export * from "./data.json" with { default: "json" };'))
+        declaration = keyword_attribute['body'][0]
+        self.assertEqual(declaration['attributes'][0]['key']['name'], 'default')
+        self.assertEqual(declaration['attributes'][0]['value']['value'], 'json')
+
+        literal_attribute = toDict(parseModule('export * from "./data.json" with { "default": "json" };'))
+        declaration = literal_attribute['body'][0]
+        self.assertEqual(declaration['attributes'][0]['key']['value'], 'default')
+        self.assertEqual(declaration['attributes'][0]['value']['value'], 'json')
+
+        with self.assertRaises(Error):
+            parseModule('import data from "./data.json" with { type: "json", type: "json" };')
+
+        with self.assertRaises(Error):
+            parseModule('import data from "./data.json" with { default: "json", "default": "json" };')
+
+        with self.assertRaises(Error):
+            parseModule('export { "foo" };')
+
+    def test_ecma2025_regexp_named_groups_and_modifiers(self):
+        literal = toDict(parse(r'/(?<year>\d{4})-\k<year>/;'))['body'][0]['expression']
+        self.assertEqual(literal['type'], 'Literal')
+        self.assertEqual(literal['regex']['pattern'], r'(?<year>\d{4})-\k<year>')
+
+        escaped_name = toDict(parse(r'/(?<\u0061>a)\k<a>/;'))['body'][0]['expression']
+        self.assertEqual(escaped_name['type'], 'Literal')
+        self.assertEqual(escaped_name['regex']['pattern'], r'(?<\u0061>a)\k<a>')
+
+        duplicate = toDict(parse(r'/(?<year>\d{4})-\d{2}|\d{2}-(?<year>\d{4})/;'))['body'][0]['expression']
+        self.assertEqual(duplicate['regex']['pattern'], r'(?<year>\d{4})-\d{2}|\d{2}-(?<year>\d{4})')
+
+        modifier_cases = [
+            r'/(?i:abc)/;',
+            r'/(?i-:abc)/;',
+            r'/(?-i:abc)/i;',
+            r'/(?s-m:abc)/m;',
+            r'/(?<x>a)\cA/u;',
+            r'/\cA/u;',
+            r'/(?<\u{10400}>a)\k<\u{10400}>/u;',
+            r'/(?<\u{10400}>a)\k<\u{10400}>/v;',
+            r'/(?<a\u{10400}>x)/u;',
+            r'/(?<a\u{10400}>x)/v;',
+            r'/(?<\uD801\uDC00>x)/u;',
+            r'/(?<\uD801\uDC00>x)/v;',
+            r'/(?<a\uD801\uDC00>x)/u;',
+            r'/(?<\u{10400}>x)/;',
+            r'/(?<a\u{10400}>x)/;',
+            r'/(?<a\u{1D7CE}>a)/u;',
+            r'/(?<a\u200c>a)/u;',
+            r'/(?<=\d+)/u;',
+            r'/(?<=\d+)/v;',
+            r'/(?<=\p{RGI_Emoji}*)/v;',
+            r'/\1(a)/u;',
+            r'/\1(a)/v;',
+            r'/\2(a)(b)/u;',
+            r'/\10(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)/u;',
+            r'/(a)\1/u;',
+            r'/(a)\1/v;',
+            r'/\k<missing>/;',
+            r'/(a)\k<missing>/;',
+            r'/a{}/;',
+            r'/a{,3}/;',
+            r'/a{/;',
+            r'/a\u007b1,2}+/;',
+            r'/a*{x}/;',
+            r'/a+?{x}/;',
+            r'/a*{/;',
+            r'/a*{}/;',
+            r'/a*{,3}/;',
+            r'/\p{ASCII/;',
+            r'/\p{Definitely_Not_A_Property}/;',
+            r'/\P{RGI_Emoji}/;',
+            r'/\p{ASCII}(?:a)*/;',
+            r'/\b{,3}/;',
+            r'/\B{,3}/;',
+            r'/\cA/;',
+            r'/\cA{,3}/;',
+            r'/\c/;',
+            r'/\c*/;',
+            r'/\q/;',
+            r'/\q{ab}/;',
+            r'/\u{1/;',
+            r'/\u{10400}/;',
+            r'/\u{110000}/;',
+            r'/[]/;',
+            r'/[^]/;',
+            r'/[^]*/;',
+            r'/[^]{,3}/;',
+            r'/[\q{ab}]/;',
+            r'/[\q{ab}]+/;',
+            r'/[\cA]/;',
+            r'/[\d-a]/;',
+            r'/[a-\d]/;',
+            r'/[\d-\w]/;',
+            r'/[z-\d]/;',
+            r'/[\d-z]/;',
+            r'/[]/u;',
+            r'/[^]/u;',
+            r'/[\cA]/u;',
+            r'/[\-]/u;',
+            r'/[z-\u{10000}]/u;',
+            r'/[z-\u{10000}]/v;',
+            r'/[\u{10000}-\u{10001}]/u;',
+            r'/[\u{10000}-\u{10001}]/v;',
+            r'/[a--b]/v;',
+            r'/[a&&b]/v;',
+            r'/[a-b]/v;',
+            r'/[[a--b]&&c]/v;',
+            r'/[^]/v;',
+            r'/[a&&\&]/v;',
+            r'/[a&&[&]]/v;',
+            r'/[\(\)\{\}\|\/]/v;',
+            r'/[^\q{a}]/v;',
+            r'/[^\q{\x61}]/v;',
+            r'/[^\p{RGI_Emoji}&&a]/v;',
+            r'/[\q{\}}]/v;',
+            r'/[\q{ab|cd}]/v;',
+            r'/[[a]&&\q{ab}]/v;',
+            r'/[\p{Basic_Emoji}]/v;',
+            r'/[\cA]/v;',
+            r'/[\cA-B]/v;',
+            r'/a\u{7b}/v;',
+            r'/a\u007b/v;',
+            r'/\u{28}/v;',
+            r'/a\u{7b}/u;',
+            r'/a\u007b/u;',
+            r'/\u{28}/u;',
+            r'/\p{ASCII}{2,3}/v;',
+            r'/\p{ASCII}/v;',
+            r'/\p{ASCII}/u;',
+            r'/\p{ASCII}(?=a)/u;',
+            r'/\p{ASCII}(?=a)/v;',
+            r'/\p{ASCII}(?:a)*/u;',
+            r'/[\b]*/u;',
+            r'/[\b]*/v;',
+            r'/\p{ASCII}\cA/v;',
+            r'/\p{General_Category=Uppercase_Letter}/v;',
+            r'/\p{Script=Greek}/v;',
+            r'/\p{Script=Garay}/v;',
+            r'/\p{Script=Todr}/v;',
+            r'/\p{Script=Cuneiform}/v;',
+            r'/\p{Script=Hira}/v;',
+            r'/\p{Script=Kana}/v;',
+            r'/\p{Script=Zzzz}/v;',
+            r'/\p{RGI_Emoji}/v;',
+        ]
+        for src in modifier_cases:
+            with self.subTest(src=src):
+                parse(src)
+
+        invalid_cases = [
+            r'/(?<x>a)(?<x>b)/;',
+            r'/(?<\u0061>a)(?<a>b)/;',
+            r'/(?<x>a|(?<x>b))/;',
+            r'/(?<\q>a)/;',
+            r'/(?<\u00G0>a)/;',
+            r'/(?<\u005c>a)/u;',
+            r'/(?<\u005c>a)/v;',
+            r'/(?<\u{1D7CE}>a)/u;',
+            r'/(?<\u200c>a)/u;',
+            r'/(?<\uD801>x)/u;',
+            r'/(?<\uDC00>x)/u;',
+            r'/(?<a\uD801>x)/u;',
+            r'/(?<x>a)\k<missing>/;',
+            r'/(?<x>a)[\k<x>]/u;',
+            r'/(?ii:a)/;',
+            r'/(?i-i:a)/;',
+            r'/(?x:a)/;',
+            r'/(?<x>a)\a/u;',
+            r'/(?<x>a)\00/u;',
+            r'/(a)\2/u;',
+            r'/\3(a)(b)/u;',
+            r'/\10(a)(b)/u;',
+            r'/a\a/u;',
+            r'/a\00/u;',
+            r'/\x6\u0061/u;',
+            r'/\x6\u{61}/u;',
+            r'/\p{RGI_Emoji}/u;',
+            r'/[\p{Basic_Emoji}]/u;',
+            r'/[\p{ASCII}-a]/u;',
+            r'/[a-\p{ASCII}]/u;',
+            r'/[\u{10000}-a]/u;',
+            r'/[\u{10000}-a]/v;',
+            r'/[\u{10001}-\u{10000}]/u;',
+            r'/[\u{10001}-\u{10000}]/v;',
+            r'/\p{ASCII}(?=a)*/u;',
+            r'/\p{ASCII}(?=a)+/u;',
+            r'/\p{ASCII}(?=a)?/u;',
+            r'/\p{ASCII}(?=a){1}/u;',
+            r'/\p{ASCII}(?!a)*/u;',
+            r'/\p{ASCII}(?<=a)*/u;',
+            r'/\p{ASCII}(?<!a)*/u;',
+            r'/(?=a)*/u;',
+            r'/(?=a)*/v;',
+            r'/\p{ASCII}(?=a)*/v;',
+            r'/[a&&b](?=a)*/v;',
+            r'/a++/;',
+            r'/a{1,2}+/;',
+            r'/\D++/;',
+            r'/[\b]*+a/;',
+            r'/a*{1}/;',
+            r'/a+?{1}/;',
+            r'/\p{ASCII}(?<=a)*/;',
+            r'/\b{2,1}/;',
+            r'/\B{2,1}/;',
+            r'/\cA{2,1}/;',
+            r'/\c*{2,1}/;',
+            r'/(?<=a){1}/;',
+            r'/[^]{2,1}/;',
+            r'/[\q{ab}]+{2,1}/;',
+            r'/[\p{ASCII}]*{2,1}/;',
+            r'/[\a-\b]/;',
+            r'/[\cZ-\cA]/;',
+            r'/[\q-a]/;',
+            r'/a++/u;',
+            r'/a{1,2}+/u;',
+            r'/\p{ASCII}++/v;',
+            r'/[\b]*+a/u;',
+            r'/a+??/u;',
+            r'/a{1}?+/u;',
+            r'/\p{ASCII}\a/v;',
+            r'/[\a]/v;',
+            r'/a/gg;',
+            r'/a/z;',
+            r'/a/uv;',
+            r'/(/v;',
+            r'/]/v;',
+            r'/}/v;',
+            r'/]/u;',
+            r'/}/u;',
+            r'/[z-a]/v;',
+            r'/[a--]/v;',
+            r'/[a&&]/v;',
+            r'/[a--b&&c]/v;',
+            r'/[a&&&]/v;',
+            r'/[[a]&&b]/u;',
+            r'/[|]/v;',
+            r'/[(){}]/v;',
+            r'/[a||b]/v;',
+            r'/[!!]/v;',
+            r'/[a-]/v;',
+            r'/[-]/v;',
+            r'/[[a]\//v;',
+            r'/[^\p{RGI_Emoji}]/v;',
+            r'/[^\q{ab}]/v;',
+            r'/[\q{\d}]/v;',
+            r'/[\q{\a}]/v;',
+            r'/\p{ASCII}{}/v;',
+            r'/\p{ASCII}{/v;',
+            r'/\p{ASCII}{3,2}/v;',
+            r'/a{}/u;',
+            r'/a{,3}/u;',
+            r'/a{/u;',
+            r'/{/u;',
+            r'/\p{Definitely_Not_A_Property}/v;',
+            r'/\p{Script=Definitely_Not_A_Property}/v;',
+            r'/\p{Script=Hrkt}/v;',
+            r'/\p{Script_Extensions=Hrkt}/v;',
+            r'/\p{Script=Katakana_Or_Hiragana}/v;',
+            r'/\p{Script_Extensions=Katakana_Or_Hiragana}/v;',
+            r'/\p{ASCII/v;',
+            r'/\P{RGI_Emoji}/v;',
+            r'/[\q{ab]/v;',
+        ]
+        for src in invalid_cases:
+            with self.subTest(src=src):
+                with self.assertRaises(Error):
+                    parse(src)
+
+    def find_executable(self, name):
+        for path in os.environ.get('PATH', '').split(os.pathsep):
+            candidate = os.path.join(path, name)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+        return None
+
+    def node_regexp_accepts(self, node, literal):
+        script = (
+            "const literal = process.argv[1];"
+            "const last = literal.lastIndexOf('/');"
+            "if (literal[0] !== '/' || last <= 0) process.exit(2);"
+            "try { new RegExp(literal.slice(1, last), literal.slice(last + 1)); process.exit(0); }"
+            "catch (e) { process.exit(1); }"
+        )
+        with open(os.devnull, 'wb') as devnull:
+            status = subprocess.call([node, '-e', script, literal], stdout=devnull, stderr=devnull)
+        return status == 0
+
+    def test_ecma2025_regexp_node_differential_cases(self):
+        node = self.find_executable('node')
+        if not node:
+            self.skipTest('node is not available')
+
+        if not self.node_regexp_accepts(node, r'/./v'):
+            self.skipTest('node does not support the v regexp flag')
+
+        cases = [
+            r'/(?<year>\d{4})-\k<year>/',
+            r'/(?i-:abc)/',
+            r'/[a--b]/v',
+            r'/[a&&b]/v',
+            r'/[^]/v',
+            r'/[^\q{\x61}]/v',
+            r'/[\q{\}}]/v',
+            r'/[[a]&&\q{ab}]/v',
+            r'/\p{ASCII}{2,3}/v',
+            r'/\p{ASCII}\cA/v',
+            r'/(?<\u{10400}>a)\k<\u{10400}>/u',
+            r'/(?<\u{10400}>a)\k<\u{10400}>/v',
+            r'/(?<a\u{10400}>x)/u',
+            r'/(?<a\u{10400}>x)/v',
+            r'/(?<\uD801\uDC00>x)/u',
+            r'/(?<\uD801\uDC00>x)/v',
+            r'/(?<a\uD801\uDC00>x)/u',
+            r'/(?<\u{10400}>x)/',
+            r'/(?<a\u{10400}>x)/',
+            r'/(?<a\u{1D7CE}>a)/u',
+            r'/(?<a\u200c>a)/u',
+            r'/(?<=\d+)/u',
+            r'/(?<=\d+)/v',
+            r'/(?<=\p{RGI_Emoji}*)/v',
+            r'/\1(a)/u',
+            r'/\1(a)/v',
+            r'/\2(a)(b)/u',
+            r'/\10(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)/u',
+            r'/(a)\1/u',
+            r'/(a)\1/v',
+            r'/\k<missing>/',
+            r'/(a)\k<missing>/',
+            r'/a{}/',
+            r'/a{,3}/',
+            r'/a{/',
+            r'/a\u007b1,2}+/',
+            r'/a*{x}/',
+            r'/a+?{x}/',
+            r'/a*{/',
+            r'/a*{}/',
+            r'/a*{,3}/',
+            r'/\p{ASCII/',
+            r'/\p{Definitely_Not_A_Property}/',
+            r'/\P{RGI_Emoji}/',
+            r'/\p{ASCII}(?:a)*/',
+            r'/\b{,3}/',
+            r'/\B{,3}/',
+            r'/\cA/',
+            r'/\cA{,3}/',
+            r'/\c/',
+            r'/\c*/',
+            r'/\q/',
+            r'/\q{ab}/',
+            r'/\u{1/',
+            r'/\u{10400}/',
+            r'/\u{110000}/',
+            r'/[]/',
+            r'/[^]/',
+            r'/[^]*/',
+            r'/[^]{,3}/',
+            r'/[\q{ab}]/',
+            r'/[\q{ab}]+/',
+            r'/[\cA]/',
+            r'/[\d-a]/',
+            r'/[a-\d]/',
+            r'/[\d-\w]/',
+            r'/[z-\d]/',
+            r'/[\d-z]/',
+            r'/[]/u',
+            r'/[^]/u',
+            r'/\p{ASCII}(?=a)/u',
+            r'/\p{ASCII}(?=a)/v',
+            r'/\p{ASCII}(?:a)*/u',
+            r'/[\b]*/u',
+            r'/[\b]*/v',
+            r'/[z-\u{10000}]/u',
+            r'/[z-\u{10000}]/v',
+            r'/[\u{10000}-\u{10001}]/u',
+            r'/[\u{10000}-\u{10001}]/v',
+            r'/\p{RGI_Emoji}/v',
+            r'/[\p{Basic_Emoji}]/v',
+            r'/[\cA]/v',
+            r'/[\cA-B]/v',
+            r'/a\u{7b}/v',
+            r'/a\u007b/v',
+            r'/\u{28}/v',
+            r'/a\u{7b}/u',
+            r'/a\u007b/u',
+            r'/\u{28}/u',
+            r'/(?<\q>a)/',
+            r'/(?<\u005c>a)/u',
+            r'/(?<\u005c>a)/v',
+            r'/(?<\u{1D7CE}>a)/u',
+            r'/(?<\u200c>a)/u',
+            r'/(?<\uD801>x)/u',
+            r'/(?<\uDC00>x)/u',
+            r'/(?<a\uD801>x)/u',
+            r'/(?<x>a)\k<missing>/',
+            r'/(?<x>a)[\k<x>]/u',
+            r'/(?<x>a)\a/u',
+            r'/(?<x>a)\00/u',
+            r'/(a)\2/u',
+            r'/\3(a)(b)/u',
+            r'/\10(a)(b)/u',
+            r'/\x6\u0061/u',
+            r'/\x6\u{61}/u',
+            r'/(/v',
+            r'/]/v',
+            r'/}/v',
+            r'/]/u',
+            r'/}/u',
+            r'/[z-a]/v',
+            r'/[a--]/v',
+            r'/[a&&]/v',
+            r'/[a--b&&c]/v',
+            r'/[a&&&]/v',
+            r'/[[a]&&b]/u',
+            r'/[\p{ASCII}-a]/u',
+            r'/[a-\p{ASCII}]/u',
+            r'/[\u{10000}-a]/u',
+            r'/[\u{10000}-a]/v',
+            r'/[\u{10001}-\u{10000}]/u',
+            r'/[\u{10001}-\u{10000}]/v',
+            r'/\p{ASCII}(?=a)*/u',
+            r'/\p{ASCII}(?=a)+/u',
+            r'/\p{ASCII}(?=a)?/u',
+            r'/\p{ASCII}(?=a){1}/u',
+            r'/\p{ASCII}(?!a)*/u',
+            r'/\p{ASCII}(?<=a)*/u',
+            r'/\p{ASCII}(?<!a)*/u',
+            r'/(?=a)*/u',
+            r'/(?=a)*/v',
+            r'/\p{ASCII}(?=a)*/v',
+            r'/[a&&b](?=a)*/v',
+            r'/a++/',
+            r'/a{1,2}+/',
+            r'/\D++/',
+            r'/[\b]*+a/',
+            r'/a*{1}/',
+            r'/a+?{1}/',
+            r'/\p{ASCII}(?<=a)*/',
+            r'/\b{2,1}/',
+            r'/\B{2,1}/',
+            r'/\cA{2,1}/',
+            r'/\c*{2,1}/',
+            r'/(?<=a){1}/',
+            r'/[^]{2,1}/',
+            r'/[\q{ab}]+{2,1}/',
+            r'/[\p{ASCII}]*{2,1}/',
+            r'/[\a-\b]/',
+            r'/[\cZ-\cA]/',
+            r'/[\q-a]/',
+            r'/a++/u',
+            r'/a{1,2}+/u',
+            r'/\p{ASCII}++/v',
+            r'/[\b]*+a/u',
+            r'/a+??/u',
+            r'/a{1}?+/u',
+            r'/[|]/v',
+            r'/[(){}]/v',
+            r'/[a||b]/v',
+            r'/[[a]\//v',
+            r'/[^\p{RGI_Emoji}]/v',
+            r'/[^\q{ab}]/v',
+            r'/[\q{\d}]/v',
+            r'/\p{ASCII}{}/v',
+            r'/a{}/u',
+            r'/a{,3}/u',
+            r'/a{/u',
+            r'/{/u',
+            r'/\p{Definitely_Not_A_Property}/v',
+            r'/\p{Script=Hrkt}/v',
+            r'/\p{Script_Extensions=Hrkt}/v',
+            r'/\p{Script=Katakana_Or_Hiragana}/v',
+            r'/\p{Script_Extensions=Katakana_Or_Hiragana}/v',
+            r'/\p{ASCII/v',
+            r'/\P{RGI_Emoji}/v',
+            r'/\p{RGI_Emoji}/u',
+            r'/[\p{Basic_Emoji}]/u',
+            r'/[\a]/v',
+        ]
+        for literal in cases:
+            with self.subTest(literal=literal):
+                node_ok = self.node_regexp_accepts(node, literal)
+                try:
+                    parse(literal + ';')
+                    parser_ok = True
+                except Error:
+                    parser_ok = False
+                self.assertEqual(node_ok, parser_ok)
 
 
 # class TestThirdParty(unittest.TestCase):

@@ -24,6 +24,7 @@
 from __future__ import absolute_import, unicode_literals
 
 import re
+import unicodedata
 import warnings
 
 from .objects import Object
@@ -100,6 +101,132 @@ class Octal(object):
     def __init__(self, octal, code):
         self.octal = octal
         self.code = code
+
+
+REGEXP_UNICODE_PROPERTY_NAMES = set((
+    'General_Category', 'gc',
+    'Script', 'sc',
+    'Script_Extensions', 'scx',
+))
+
+REGEXP_GENERAL_CATEGORY_VALUES = set((
+    'C', 'Other', 'Cc', 'Control', 'cntrl', 'Cf', 'Format', 'Cn', 'Unassigned',
+    'Co', 'Private_Use', 'Cs', 'Surrogate',
+    'L', 'Letter', 'LC', 'Cased_Letter', 'Ll', 'Lowercase_Letter',
+    'Lm', 'Modifier_Letter', 'Lo', 'Other_Letter', 'Lt', 'Titlecase_Letter',
+    'Lu', 'Uppercase_Letter',
+    'M', 'Mark', 'Combining_Mark', 'Mc', 'Spacing_Mark',
+    'Me', 'Enclosing_Mark', 'Mn', 'Nonspacing_Mark',
+    'N', 'Number', 'Nd', 'Decimal_Number', 'digit', 'Nl', 'Letter_Number',
+    'No', 'Other_Number',
+    'P', 'Punctuation', 'punct', 'Pc', 'Connector_Punctuation',
+    'Pd', 'Dash_Punctuation', 'Pe', 'Close_Punctuation',
+    'Pf', 'Final_Punctuation', 'Pi', 'Initial_Punctuation',
+    'Po', 'Other_Punctuation', 'Ps', 'Open_Punctuation',
+    'S', 'Symbol', 'Sc', 'Currency_Symbol', 'Sk', 'Modifier_Symbol',
+    'Sm', 'Math_Symbol', 'So', 'Other_Symbol',
+    'Z', 'Separator', 'Zl', 'Line_Separator', 'Zp', 'Paragraph_Separator',
+    'Zs', 'Space_Separator',
+))
+
+REGEXP_SCRIPT_VALUES = set((
+    'Adlam', 'Adlm', 'Ahom', 'Anatolian_Hieroglyphs', 'Hluw', 'Arabic', 'Arab',
+    'Armenian', 'Armn', 'Avestan', 'Avst', 'Balinese', 'Bali', 'Bamum', 'Bamu',
+    'Bassa_Vah', 'Bass', 'Batak', 'Batk', 'Bengali', 'Beng', 'Bhaiksuki',
+    'Bhks', 'Bopomofo', 'Bopo', 'Brahmi', 'Brah', 'Braille', 'Brai',
+    'Buginese', 'Bugi', 'Buhid', 'Buhd', 'Canadian_Aboriginal', 'Cans',
+    'Carian', 'Cari', 'Caucasian_Albanian', 'Aghb', 'Chakma', 'Cakm', 'Cham',
+    'Cherokee', 'Cher', 'Chorasmian', 'Chrs', 'Common', 'Zyyy', 'Coptic',
+    'Copt', 'Qaac', 'Cuneiform', 'Xsux', 'Cypriot', 'Cprt', 'Cypro_Minoan', 'Cpmn', 'Cyrillic',
+    'Cyrl', 'Deseret', 'Dsrt', 'Devanagari', 'Deva', 'Dives_Akuru', 'Diak',
+    'Dogra', 'Dogr', 'Duployan', 'Dupl', 'Egyptian_Hieroglyphs', 'Egyp',
+    'Elbasan', 'Elba', 'Elymaic', 'Elym', 'Ethiopic', 'Ethi', 'Garay', 'Gara',
+    'Georgian', 'Geor', 'Glagolitic', 'Glag', 'Gothic', 'Goth',
+    'Grantha', 'Gran', 'Greek', 'Grek', 'Gujarati', 'Gujr', 'Gunjala_Gondi',
+    'Gong', 'Gurmukhi', 'Guru', 'Gurung_Khema', 'Gukh',
+    'Han', 'Hani', 'Hangul', 'Hang', 'Hanifi_Rohingya', 'Rohg', 'Hanunoo',
+    'Hano', 'Hatran', 'Hatr', 'Hebrew', 'Hebr', 'Hiragana', 'Hira',
+    'Imperial_Aramaic', 'Armi', 'Inherited', 'Zinh', 'Qaai',
+    'Inscriptional_Pahlavi', 'Phli', 'Inscriptional_Parthian', 'Prti',
+    'Javanese', 'Java', 'Kaithi', 'Kthi', 'Kannada', 'Knda', 'Katakana',
+    'Kana', 'Kawi', 'Kayah_Li', 'Kali', 'Kharoshthi', 'Khar',
+    'Khitan_Small_Script', 'Kits', 'Kirat_Rai', 'Krai', 'Khmer', 'Khmr', 'Khojki', 'Khoj',
+    'Khudawadi', 'Sind', 'Lao', 'Laoo', 'Latin', 'Latn', 'Lepcha', 'Lepc',
+    'Limbu', 'Limb', 'Linear_A', 'Lina', 'Linear_B', 'Linb', 'Lisu',
+    'Lycian', 'Lyci', 'Lydian', 'Lydi', 'Mahajani', 'Mahj', 'Makasar', 'Maka',
+    'Malayalam', 'Mlym', 'Mandaic', 'Mand', 'Manichaean', 'Mani', 'Marchen',
+    'Marc', 'Masaram_Gondi', 'Gonm', 'Medefaidrin', 'Medf', 'Meetei_Mayek',
+    'Mtei', 'Mende_Kikakui', 'Mend', 'Meroitic_Cursive', 'Merc',
+    'Meroitic_Hieroglyphs', 'Mero', 'Miao', 'Plrd', 'Modi', 'Mongolian',
+    'Mong', 'Mro', 'Mroo', 'Multani', 'Mult', 'Myanmar', 'Mymr', 'Nabataean',
+    'Nbat', 'Nag_Mundari', 'Nagm', 'Nandinagari', 'Nand', 'New_Tai_Lue',
+    'Talu', 'Newa', 'Nko', 'Nkoo', 'Nushu', 'Nshu', 'Nyiakeng_Puachue_Hmong',
+    'Hmnp', 'Ogham', 'Ogam', 'Ol_Chiki', 'Olck', 'Ol_Onal', 'Onao',
+    'Old_Hungarian', 'Hung',
+    'Old_Italic', 'Ital', 'Old_North_Arabian', 'Narb', 'Old_Permic', 'Perm',
+    'Old_Persian', 'Xpeo', 'Old_Sogdian', 'Sogo', 'Old_South_Arabian', 'Sarb',
+    'Old_Turkic', 'Orkh', 'Old_Uyghur', 'Ougr', 'Oriya', 'Orya', 'Osage',
+    'Osge', 'Osmanya', 'Osma', 'Pahawh_Hmong', 'Hmng', 'Palmyrene', 'Palm',
+    'Pau_Cin_Hau', 'Pauc', 'Phags_Pa', 'Phag', 'Phoenician', 'Phnx',
+    'Psalter_Pahlavi', 'Phlp', 'Rejang', 'Rjng', 'Runic', 'Runr',
+    'Samaritan', 'Samr', 'Saurashtra', 'Saur', 'Sharada', 'Shrd', 'Shavian',
+    'Shaw', 'Siddham', 'Sidd', 'SignWriting', 'Sgnw', 'Sinhala', 'Sinh',
+    'Sogdian', 'Sogd', 'Sora_Sompeng', 'Sora', 'Soyombo', 'Soyo', 'Sundanese',
+    'Sund', 'Sunuwar', 'Sunu', 'Syloti_Nagri', 'Sylo', 'Syriac', 'Syrc', 'Tagalog', 'Tglg',
+    'Tagbanwa', 'Tagb', 'Tai_Le', 'Tale', 'Tai_Tham', 'Lana', 'Tai_Viet',
+    'Tavt', 'Takri', 'Takr', 'Tamil', 'Taml', 'Tangsa', 'Tnsa', 'Tangut',
+    'Tang', 'Telugu', 'Telu', 'Thaana', 'Thaa', 'Thai', 'Tibetan', 'Tibt',
+    'Tifinagh', 'Tfng', 'Tirhuta', 'Tirh', 'Todhri', 'Todr', 'Toto',
+    'Tulu_Tigalari', 'Tutg', 'Ugaritic', 'Ugar', 'Vai', 'Vaii',
+    'Vithkuqi', 'Vith', 'Wancho', 'Wcho', 'Warang_Citi', 'Wara',
+    'Yezidi', 'Yezi', 'Yi', 'Yiii', 'Zanabazar_Square', 'Zanb', 'Unknown', 'Zzzz',
+))
+
+REGEXP_BINARY_UNICODE_PROPERTIES = set((
+    'ASCII', 'Any', 'Assigned',
+    'ASCII_Hex_Digit', 'AHex', 'Alphabetic', 'Alpha',
+    'Bidi_Control', 'Bidi_C', 'Bidi_Mirrored', 'Bidi_M',
+    'Case_Ignorable', 'CI', 'Cased',
+    'Changes_When_Casefolded', 'CWCF', 'Changes_When_Casemapped', 'CWCM',
+    'Changes_When_Lowercased', 'CWL', 'Changes_When_NFKC_Casefolded', 'CWKCF',
+    'Changes_When_Titlecased', 'CWT', 'Changes_When_Uppercased', 'CWU',
+    'Dash', 'Default_Ignorable_Code_Point', 'DI',
+    'Deprecated', 'Dep', 'Diacritic', 'Dia',
+    'Emoji', 'Emoji_Component', 'EComp', 'Emoji_Modifier', 'EMod',
+    'Emoji_Modifier_Base', 'EBase', 'Emoji_Presentation', 'EPres',
+    'Extended_Pictographic', 'ExtPict', 'Extender', 'Ext',
+    'Grapheme_Base', 'Gr_Base', 'Grapheme_Extend', 'Gr_Ext',
+    'Hex_Digit', 'Hex', 'IDS_Binary_Operator', 'IDSB',
+    'IDS_Trinary_Operator', 'IDST', 'ID_Continue', 'IDC', 'ID_Start', 'IDS',
+    'Ideographic', 'Ideo', 'Join_Control', 'Join_C',
+    'Logical_Order_Exception', 'LOE', 'Lowercase', 'Lower',
+    'Math', 'Noncharacter_Code_Point', 'NChar',
+    'Pattern_Syntax', 'Pat_Syn', 'Pattern_White_Space', 'Pat_WS',
+    'Quotation_Mark', 'QMark', 'Radical', 'Regional_Indicator', 'RI',
+    'Sentence_Terminal', 'STerm', 'Soft_Dotted', 'SD',
+    'Terminal_Punctuation', 'Term', 'Unified_Ideograph', 'UIdeo',
+    'Uppercase', 'Upper', 'Variation_Selector', 'VS',
+    'White_Space', 'space', 'XID_Continue', 'XIDC', 'XID_Start', 'XIDS',
+))
+
+REGEXP_BINARY_PROPERTIES_OF_STRINGS = set((
+    'Basic_Emoji',
+    'Emoji_Keycap_Sequence',
+    'RGI_Emoji',
+    'RGI_Emoji_Flag_Sequence',
+    'RGI_Emoji_Modifier_Sequence',
+    'RGI_Emoji_Tag_Sequence',
+    'RGI_Emoji_ZWJ_Sequence',
+))
+
+REGEXP_CLASS_SET_SYNTAX_CHARACTERS = set('()[]{}/-\\|')
+
+REGEXP_CLASS_SET_RESERVED_DOUBLE_PUNCTUATORS = set((
+    '&&', '!!', '##', '$$', '%%', '**', '++', ',,', '..', '::', ';;',
+    '<<', '==', '>>', '??', '@@', '^^', '``', '~~',
+))
+
+REGEXP_IDENTITY_ESCAPE_CHARACTERS = set('^$\\.*+?()[]{}|/')
 
 
 class Scanner(object):
@@ -1169,7 +1296,1630 @@ class Scanner(object):
 
     # https://tc39.github.io/ecma262/#sec-literals-regular-expression-literals
 
+    def validateRegExpFlags(self, flags):
+        allowed = set('dgimsuvy')
+        seen = set()
+        for flag in flags:
+            if flag in seen or flag not in allowed:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return
+            seen.add(flag)
+
+        if 'u' in seen and 'v' in seen:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+
+    def readRegExpIdentifierEscape(self, name, index):
+        length = len(name)
+        if index + 1 >= length or name[index + 1] != 'u':
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 1, None
+
+        if index + 2 < length and name[index + 2] == '{':
+            i = index + 3
+            start = i
+            while i < length and name[i] != '}':
+                if not Character.isHexDigit(name[i]):
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return i + 1, None
+                i += 1
+
+            if i == start or i >= length:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return i, None
+
+            codePoint = int(name[start:i], 16)
+            if codePoint > 0x10FFFF:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return i + 1, None
+
+            return i + 1, Character.fromCodePoint(codePoint)
+
+        if index + 5 >= length:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return length, None
+
+        digits = name[index + 2:index + 6]
+        for ch in digits:
+            if not Character.isHexDigit(ch):
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return index + 6, None
+
+        codePoint = int(digits, 16)
+        end = index + 6
+        if 0xD800 <= codePoint <= 0xDBFF and end + 5 < length and name[end:end + 2] == '\\u':
+            lowDigits = name[end + 2:end + 6]
+            if all(Character.isHexDigit(ch) for ch in lowDigits):
+                lowSurrogate = int(lowDigits, 16)
+                if 0xDC00 <= lowSurrogate <= 0xDFFF:
+                    codePoint = 0x10000 + (codePoint - 0xD800) * 0x400 + (lowSurrogate - 0xDC00)
+                    end += 6
+
+        return end, Character.fromCodePoint(codePoint)
+
+    def validateRegExpIdentifierName(self, name):
+        normalized = ''
+        i = 0
+        length = len(name)
+
+        while i < length:
+            if name[i] == '\\':
+                i, ch = self.readRegExpIdentifierEscape(name, i)
+                if ch is None:
+                    return False
+            else:
+                ch = name[i]
+                i += 1
+
+            if not normalized:
+                if not self.isRegExpIdentifierStart(ch):
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return False
+            elif not self.isRegExpIdentifierPart(ch):
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return False
+
+            normalized += ch
+
+        if not normalized:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return False
+
+        return normalized
+
+    def regExpGroupsCanBothParticipate(self, left, right):
+        rightMap = dict(right)
+        for contextId, alternative in left:
+            if contextId in rightMap and rightMap[contextId] != alternative:
+                return False
+        return True
+
+    def validateRegExpGroupName(self, names, name, path):
+        normalizedName = self.validateRegExpIdentifierName(name)
+        if not normalizedName:
+            return
+
+        for otherPath in names.get(normalizedName, []):
+            if self.regExpGroupsCanBothParticipate(otherPath, path):
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return
+
+        names.setdefault(normalizedName, []).append(path)
+
+    def isRegExpIdentifierStart(self, ch):
+        return ch != '\\' and (
+            Character.isIdentifierStart(ch) or
+            unicodedata.category(ch) in ('Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Nl')
+        )
+
+    def isRegExpIdentifierPart(self, ch):
+        return ch != '\\' and (
+            self.isRegExpIdentifierStart(ch) or
+            Character.isIdentifierPart(ch) or
+            unicodedata.category(ch) in ('Mn', 'Mc', 'Nd', 'Pc')
+        )
+
+    def validateRegExpModifiers(self, enabling, disabling):
+        if not enabling and disabling is not None and not disabling:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return
+
+        enabled = set()
+        for flag in enabling:
+            if flag in enabled:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return
+            enabled.add(flag)
+
+        disabled = set()
+        for flag in disabling or '':
+            if flag in disabled or flag in enabled:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return
+            disabled.add(flag)
+
+    def normalizeRegExpModifiers(self, enabling, disabling):
+        if disabling is None or not disabling:
+            return '(?%s:' % enabling
+        if not enabling:
+            return '(?-%s:' % disabling
+        return '(?%s-%s:' % (enabling, disabling)
+
+    def scanRegExpModifiers(self, pattern, index):
+        length = len(pattern)
+        i = index
+        enabling = ''
+
+        while i < length and pattern[i] in 'ims':
+            enabling += pattern[i]
+            i += 1
+
+        if i < length and pattern[i] == '-':
+            i += 1
+            disabling = ''
+            while i < length and pattern[i] in 'ims':
+                disabling += pattern[i]
+                i += 1
+            if i < length and pattern[i] == ':':
+                self.validateRegExpModifiers(enabling, disabling)
+                return i + 1, self.normalizeRegExpModifiers(enabling, disabling)
+            return None
+
+        if i < length and pattern[i] == ':':
+            self.validateRegExpModifiers(enabling, None)
+            return i + 1, self.normalizeRegExpModifiers(enabling, None)
+
+        return None
+
+    def validateRegExpUnicodeProperty(self, expression, negative, unicodeSetsMode):
+        if not expression:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return False
+
+        mayContainStrings = False
+        parts = expression.split('=')
+        if len(parts) == 2:
+            name, value = parts
+            if name not in REGEXP_UNICODE_PROPERTY_NAMES:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            elif name in ('General_Category', 'gc'):
+                if value not in REGEXP_GENERAL_CATEGORY_VALUES:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            elif value not in REGEXP_SCRIPT_VALUES:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+        elif len(parts) == 1:
+            mayContainStrings = expression in REGEXP_BINARY_PROPERTIES_OF_STRINGS
+            if expression not in REGEXP_GENERAL_CATEGORY_VALUES and expression not in REGEXP_BINARY_UNICODE_PROPERTIES and not mayContainStrings:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            elif mayContainStrings and (negative or not unicodeSetsMode):
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+        else:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+
+        return mayContainStrings
+
+    def validateRegExpUnicodePropertyEscape(self, pattern, index, unicodeSetsMode, returnMayContainStrings=False):
+        if index + 2 >= len(pattern) or pattern[index] != '\\' or pattern[index + 1] not in ('p', 'P') or pattern[index + 2] != '{':
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return (index + 2, False) if returnMayContainStrings else index + 2
+
+        close = pattern.find('}', index + 3)
+        if close == -1:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return (index + 2, False) if returnMayContainStrings else index + 2
+
+        mayContainStrings = self.validateRegExpUnicodeProperty(pattern[index + 3:close], pattern[index + 1] == 'P', unicodeSetsMode)
+        return (close + 1, mayContainStrings) if returnMayContainStrings else close + 1
+
+    def skipRegExpBracedEscape(self, pattern, index):
+        i = index + 3
+        length = len(pattern)
+        while i < length:
+            ch = pattern[i]
+            if ch == '\\':
+                if i + 2 < length and pattern[i + 1] == 'u' and pattern[i + 2] == '{':
+                    close = pattern.find('}', i + 3)
+                    if close == -1:
+                        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                        return i + 2
+                    i = close + 1
+                else:
+                    i += 2
+                continue
+            if ch == '}':
+                return i + 1
+            i += 1
+
+        if i >= length:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 2
+        return i
+
+    def skipRegExpUnicodeEscape(self, pattern, index):
+        if index + 2 < len(pattern) and pattern[index + 2] == '{':
+            close = pattern.find('}', index + 3)
+            if close == -1:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return index + 2
+            return close + 1
+        return index + 2
+
+    def validateRegExpBracedQuantifier(self, pattern, index):
+        i = index + 1
+        length = len(pattern)
+        if i >= length or not Character.isDecimalDigit(pattern[i]):
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 1
+
+        minimumStart = i
+        while i < length and Character.isDecimalDigit(pattern[i]):
+            i += 1
+        minimum = int(pattern[minimumStart:i])
+
+        if i < length and pattern[i] == '}':
+            return i + 1
+
+        if i < length and pattern[i] == ',':
+            i += 1
+            maximumStart = i
+            while i < length and Character.isDecimalDigit(pattern[i]):
+                i += 1
+            if i < length and pattern[i] == '}':
+                if maximumStart != i and minimum > int(pattern[maximumStart:i]):
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return i + 1
+
+        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+        return index + 1
+
+    def readRegExpBracedQuantifier(self, pattern, index):
+        i = index + 1
+        length = len(pattern)
+        if i >= length or not Character.isDecimalDigit(pattern[i]):
+            return None
+
+        minimumStart = i
+        while i < length and Character.isDecimalDigit(pattern[i]):
+            i += 1
+        minimum = int(pattern[minimumStart:i])
+
+        if i < length and pattern[i] == '}':
+            return i + 1
+
+        if i < length and pattern[i] == ',':
+            i += 1
+            maximumStart = i
+            while i < length and Character.isDecimalDigit(pattern[i]):
+                i += 1
+            if i < length and pattern[i] == '}':
+                if maximumStart != i and minimum > int(pattern[maximumStart:i]):
+                    return None
+                return i + 1
+
+        return None
+
+    def readRegExpBracedQuantifierSyntax(self, pattern, index):
+        i = index + 1
+        length = len(pattern)
+        if i >= length or not Character.isDecimalDigit(pattern[i]):
+            return None
+
+        while i < length and Character.isDecimalDigit(pattern[i]):
+            i += 1
+
+        if i < length and pattern[i] == '}':
+            return i + 1
+
+        if i < length and pattern[i] == ',':
+            i += 1
+            while i < length and Character.isDecimalDigit(pattern[i]):
+                i += 1
+            if i < length and pattern[i] == '}':
+                return i + 1
+
+        return None
+
+    def validateRegExpBracedQuantifiers(self, pattern):
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        while i < length:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    if i + 2 < length and pattern[i + 1] == 'q' and pattern[i + 2] == '{':
+                        i = self.skipRegExpBracedEscape(pattern, i)
+                    else:
+                        i += 2
+                    continue
+                if ch == '[':
+                    classDepth += 1
+                    i += 1
+                    continue
+                if ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '\\':
+                if i + 2 < length and pattern[i + 1] in ('p', 'P') and pattern[i + 2] == '{':
+                    i = self.skipRegExpBracedEscape(pattern, i)
+                elif i + 1 < length and pattern[i + 1] == 'u':
+                    i = self.skipRegExpUnicodeEscape(pattern, i)
+                else:
+                    i += 2
+                continue
+
+            if ch == '[':
+                classDepth = 1
+                i += 1
+                continue
+
+            if ch == '{':
+                i = self.validateRegExpBracedQuantifier(pattern, i)
+                continue
+
+            i += 1
+
+    def validateRegExpQuantifierSuffixes(self, pattern, unicodeMode=True):
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        def validateSuffix(end):
+            if end < length and pattern[end] == '?':
+                end += 1
+            if end < length and pattern[end] in '*+?':
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            elif end < length and pattern[end] == '{':
+                if unicodeMode or self.readRegExpBracedQuantifierSyntax(pattern, end) is not None:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+
+        while i < length:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    if i + 2 < length and pattern[i + 1] == 'q' and pattern[i + 2] == '{':
+                        i = self.skipRegExpBracedEscape(pattern, i)
+                    else:
+                        i += 2
+                    continue
+                if ch == '[':
+                    classDepth += 1
+                    i += 1
+                    continue
+                if ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '\\':
+                if unicodeMode and i + 2 < length and pattern[i + 1] in ('p', 'P') and pattern[i + 2] == '{':
+                    i = self.skipRegExpBracedEscape(pattern, i)
+                elif unicodeMode and i + 1 < length and pattern[i + 1] == 'u':
+                    i = self.skipRegExpUnicodeEscape(pattern, i)
+                else:
+                    i += 2
+                continue
+
+            if ch == '[':
+                classDepth = 1
+                i += 1
+                continue
+
+            if ch in '*+?':
+                validateSuffix(i + 1)
+                i += 1
+                continue
+
+            if ch == '{':
+                if unicodeMode:
+                    end = self.validateRegExpBracedQuantifier(pattern, i)
+                else:
+                    end = self.readRegExpBracedQuantifier(pattern, i)
+                    if end is None:
+                        i += 1
+                        continue
+                validateSuffix(end)
+                i = end
+                continue
+
+            i += 1
+
+    def hasRegExpNamedCapturingGroup(self, pattern, unicodeMode=True):
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        while i < length:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    if i + 2 < length and pattern[i + 1] == 'q' and pattern[i + 2] == '{':
+                        i = self.skipRegExpBracedEscape(pattern, i)
+                    else:
+                        i += 2
+                    continue
+                if ch == '[':
+                    classDepth += 1
+                    i += 1
+                    continue
+                if ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '\\':
+                if unicodeMode and i + 2 < length and pattern[i + 1] in ('p', 'P') and pattern[i + 2] == '{':
+                    i = self.skipRegExpBracedEscape(pattern, i)
+                elif unicodeMode and i + 1 < length and pattern[i + 1] == 'u':
+                    i = self.skipRegExpUnicodeEscape(pattern, i)
+                else:
+                    i += 2
+                continue
+
+            if ch == '[':
+                classDepth = 1
+                i += 1
+                continue
+
+            if pattern.startswith('(?<', i) and i + 3 < length and pattern[i + 3] not in ('=', '!'):
+                return True
+
+            i += 1
+
+        return False
+
+    def countRegExpCapturingGroups(self, pattern):
+        count = 0
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        while i < length:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    if i + 2 < length and pattern[i + 1] == 'q' and pattern[i + 2] == '{':
+                        i = self.skipRegExpBracedEscape(pattern, i)
+                    else:
+                        i += 2
+                    continue
+                if ch == '[':
+                    classDepth += 1
+                    i += 1
+                    continue
+                if ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '\\':
+                if i + 2 < length and pattern[i + 1] in ('p', 'P') and pattern[i + 2] == '{':
+                    i = self.skipRegExpBracedEscape(pattern, i)
+                elif i + 1 < length and pattern[i + 1] == 'u':
+                    i = self.skipRegExpUnicodeEscape(pattern, i)
+                else:
+                    i += 2
+                continue
+
+            if ch == '[':
+                classDepth = 1
+                i += 1
+                continue
+
+            if ch == '(':
+                if pattern.startswith('(?<', i):
+                    if i + 3 < length and pattern[i + 3] not in ('=', '!'):
+                        count += 1
+                elif not pattern.startswith('(?', i):
+                    count += 1
+                i += 1
+                continue
+
+            i += 1
+
+        return count
+
+    def sanitizeRegExpNumericBackreferences(self, pattern, captureCount):
+        output = []
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        while i < length:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    if i + 2 < length and pattern[i + 1] in ('p', 'P', 'q') and pattern[i + 2] == '{':
+                        end = self.skipRegExpBracedEscape(pattern, i)
+                        output.append(pattern[i:end])
+                        i = end
+                    else:
+                        output.append(pattern[i:i + 2])
+                        i += 2
+                    continue
+                output.append(ch)
+                if ch == '[':
+                    classDepth += 1
+                elif ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '\\':
+                if i + 1 < length and pattern[i + 1] in '123456789':
+                    end = i + 2
+                    while end < length and Character.isDecimalDigit(pattern[end]):
+                        end += 1
+                    if int(pattern[i + 1:end]) > captureCount:
+                        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    output.append('(?:)')
+                    i = end
+                    continue
+
+                output.append(pattern[i:i + 2])
+                i += 2
+                continue
+
+            if ch == '[':
+                classDepth = 1
+
+            output.append(ch)
+            i += 1
+
+        return ''.join(output)
+
+    def isRegExpQuantifierStart(self, pattern, index):
+        return index < len(pattern) and pattern[index] in '*+?{'
+
+    def skipRegExpGroup(self, pattern, index):
+        i = index + 1
+        length = len(pattern)
+        groupDepth = 1
+        classDepth = 0
+
+        while i < length and groupDepth > 0:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    if i + 2 < length and pattern[i + 1] == 'q' and pattern[i + 2] == '{':
+                        i = self.skipRegExpBracedEscape(pattern, i)
+                    else:
+                        i += 2
+                    continue
+                if ch == '[':
+                    classDepth += 1
+                    i += 1
+                    continue
+                if ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '\\':
+                if i + 2 < length and pattern[i + 1] in ('p', 'P') and pattern[i + 2] == '{':
+                    i = self.skipRegExpBracedEscape(pattern, i)
+                elif i + 1 < length and pattern[i + 1] == 'u':
+                    i = self.skipRegExpUnicodeEscape(pattern, i)
+                else:
+                    i += 2
+                continue
+
+            if ch == '[':
+                classDepth = 1
+                i += 1
+                continue
+
+            if ch == '(':
+                groupDepth += 1
+                i += 1
+                continue
+
+            if ch == ')':
+                groupDepth -= 1
+                i += 1
+                continue
+
+            i += 1
+
+        if groupDepth > 0:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+
+        return i
+
+    def validateRegExpAssertionQuantifiers(self, pattern):
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        while i < length:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    if i + 2 < length and pattern[i + 1] == 'q' and pattern[i + 2] == '{':
+                        i = self.skipRegExpBracedEscape(pattern, i)
+                    else:
+                        i += 2
+                    continue
+                if ch == '[':
+                    classDepth += 1
+                    i += 1
+                    continue
+                if ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '\\':
+                end = i + 2
+                if i + 1 < length and pattern[i + 1] in 'bB' and self.isRegExpQuantifierStart(pattern, end):
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                if i + 2 < length and pattern[i + 1] in ('p', 'P') and pattern[i + 2] == '{':
+                    i = self.skipRegExpBracedEscape(pattern, i)
+                elif i + 1 < length and pattern[i + 1] == 'u':
+                    i = self.skipRegExpUnicodeEscape(pattern, i)
+                else:
+                    i = end
+                continue
+
+            if ch == '[':
+                classDepth = 1
+                i += 1
+                continue
+
+            if ch in '^$':
+                if self.isRegExpQuantifierStart(pattern, i + 1):
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                i += 1
+                continue
+
+            if pattern.startswith(('(?=', '(?!'), i) or pattern.startswith(('(?<=', '(?<!'), i):
+                end = self.skipRegExpGroup(pattern, i)
+                if self.isRegExpQuantifierStart(pattern, end):
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                i += 1
+                continue
+
+            i += 1
+
+    def validateLegacyRegExpLookbehindQuantifiers(self, pattern):
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        while i < length:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    i += 2
+                    continue
+                if ch == '[':
+                    classDepth += 1
+                    i += 1
+                    continue
+                if ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '\\':
+                i += 2
+                continue
+
+            if ch == '[':
+                classDepth = 1
+                i += 1
+                continue
+
+            if pattern.startswith(('(?<=', '(?<!'), i):
+                end = self.skipRegExpGroup(pattern, i)
+                if end < length and pattern[end] in '*+?':
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                if end < length and self.readRegExpBracedQuantifierSyntax(pattern, end) is not None:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                i = end
+                continue
+
+            i += 1
+
+    def sanitizeRegExpCodePoint(self, codePoint):
+        if codePoint > 0xFFFF:
+            return uchr(codePoint)
+        if codePoint <= 0xFF:
+            return '\\x%02x' % codePoint
+        return '\\u%04x' % codePoint
+
+    def scanRegExpUnicodeEscapeSequence(self, pattern, index, inClass=False, unicodeSetsMode=False):
+        length = len(pattern)
+        if index + 1 >= length:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 1, 'a'
+
+        escaped = pattern[index + 1]
+
+        if escaped in 'fntvr':
+            return index + 2, '\\' + escaped
+
+        if escaped in '123456789':
+            if inClass:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            end = index + 2
+            while end < length and Character.isDecimalDigit(pattern[end]):
+                end += 1
+            return end, pattern[index:end]
+
+        if escaped == '0':
+            if index + 2 < length and Character.isDecimalDigit(pattern[index + 2]):
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 2, '\\0'
+
+        if escaped == 'b':
+            return index + 2, '\\x08' if inClass else '\\b'
+
+        if escaped == 'B':
+            if inClass:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 2, '\\B'
+
+        if escaped in 'dDsSwW':
+            return index + 2, '\\' + escaped
+
+        if escaped == 'c':
+            if index + 2 < length and pattern[index + 2] in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz':
+                value = ord(pattern[index + 2].upper()) - ord('A') + 1
+                return index + 3, '\\x%02x' % value
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 2, 'a'
+
+        if escaped == 'x':
+            if index + 3 < length and Character.isHexDigit(pattern[index + 2]) and Character.isHexDigit(pattern[index + 3]):
+                return index + 4, '\\x' + pattern[index + 2:index + 4]
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return min(index + 2, length), 'a'
+
+        if escaped == 'u':
+            if index + 2 < length and pattern[index + 2] == '{':
+                i = index + 3
+                start = i
+                while i < length and pattern[i] != '}':
+                    if not Character.isHexDigit(pattern[i]):
+                        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                        return i + 1, 'a'
+                    i += 1
+                if i == start or i >= length:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return i, 'a'
+                codePoint = int(pattern[start:i], 16)
+                if codePoint > 0x10FFFF:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return i + 1, 'a'
+                return i + 1, self.sanitizeRegExpCodePoint(codePoint)
+
+            if index + 5 < length:
+                digits = pattern[index + 2:index + 6]
+                if all(Character.isHexDigit(ch) for ch in digits):
+                    return index + 6, self.sanitizeRegExpCodePoint(int(digits, 16))
+
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return min(index + 2, length), 'a'
+
+        if escaped in ('p', 'P') and index + 2 < length and pattern[index + 2] == '{':
+            end = self.validateRegExpUnicodePropertyEscape(pattern, index, unicodeSetsMode)
+            if inClass and not unicodeSetsMode:
+                return end, '\\D' if escaped == 'P' else '\\d'
+            return end, '.'
+
+        if escaped == '-' and inClass:
+            return index + 2, '\\x2d'
+
+        if unicodeSetsMode and inClass:
+            for punctuator in REGEXP_CLASS_SET_RESERVED_DOUBLE_PUNCTUATORS:
+                if escaped in punctuator:
+                    return index + 2, '\\' + escaped
+
+        if escaped in REGEXP_IDENTITY_ESCAPE_CHARACTERS:
+            return index + 2, '\\' + escaped
+
+        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+        return index + 2, 'a'
+
+    def sanitizeRegExpUnicodePattern(self, pattern):
+        output = []
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        while i < length:
+            ch = pattern[i]
+
+            if ch == '\\':
+                end, replacement = self.scanRegExpUnicodeEscapeSequence(pattern, i, classDepth > 0)
+                output.append(replacement)
+                i = end
+                continue
+
+            if ch == '[':
+                if classDepth == 0:
+                    if i + 1 < length and pattern[i + 1] == ']':
+                        output.append('(?!)')
+                        i += 2
+                        continue
+                    if i + 2 < length and pattern[i + 1] == '^' and pattern[i + 2] == ']':
+                        output.append('[\\s\\S]')
+                        i += 3
+                        continue
+                    classDepth = 1
+            elif ch == ']':
+                if classDepth > 0:
+                    classDepth = 0
+                else:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            elif ch == '{' and classDepth == 0:
+                end = self.validateRegExpBracedQuantifier(pattern, i)
+                output.append(pattern[i:end])
+                i = end
+                continue
+            elif ch == '}' and classDepth == 0:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+
+            output.append(ch)
+            i += 1
+
+        return ''.join(output)
+
+    def prepareRegExpPattern(self, pattern, strictNamedReferences=True):
+        names = {}
+        references = []
+        output = []
+        stack = [{'id': 0, 'alternative': 0}]
+        nextContextId = 1
+        classMarker = False
+        i = 0
+        length = len(pattern)
+
+        while i < length:
+            ch = pattern[i]
+
+            if classMarker:
+                if ch == '\\':
+                    output.append(pattern[i:i + 2])
+                    i += 2
+                    continue
+
+                output.append(ch)
+                if ch == ']':
+                    classMarker = False
+                i += 1
+                continue
+
+            if ch == '\\':
+                if i + 2 < length and pattern[i + 1] == 'k' and pattern[i + 2] == '<':
+                    if not strictNamedReferences:
+                        output.append('k')
+                        i += 2
+                        continue
+
+                    end = pattern.find('>', i + 3)
+                    if end == -1:
+                        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                        output.append(ch)
+                        i += 1
+                    else:
+                        name = pattern[i + 3:end]
+                        normalizedName = self.validateRegExpIdentifierName(name)
+                        if normalizedName:
+                            references.append(normalizedName)
+                        output.append('(?:)')
+                        i = end + 1
+                    continue
+
+                output.append(pattern[i:i + 2])
+                i += 2
+                continue
+
+            if ch == '[':
+                classMarker = True
+                output.append(ch)
+                i += 1
+                continue
+
+            if ch == '|':
+                stack[-1]['alternative'] += 1
+                output.append(ch)
+                i += 1
+                continue
+
+            if ch == ')':
+                if len(stack) > 1:
+                    stack.pop()
+                output.append(ch)
+                i += 1
+                continue
+
+            if ch == '(':
+                if pattern.startswith('(?<', i) and i + 3 < length and pattern[i + 3] not in ('=', '!'):
+                    end = pattern.find('>', i + 3)
+                    if end == -1:
+                        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                        output.append(ch)
+                        i += 1
+                        continue
+
+                    name = pattern[i + 3:end]
+                    path = tuple((context['id'], context['alternative']) for context in stack)
+                    self.validateRegExpGroupName(names, name, path)
+                    output.append('(')
+                    stack.append({'id': nextContextId, 'alternative': 0})
+                    nextContextId += 1
+                    i = end + 1
+                    continue
+
+                if pattern.startswith('(?', i):
+                    modifier = self.scanRegExpModifiers(pattern, i + 2)
+                    if modifier is not None:
+                        modifierEnd, normalizedModifier = modifier
+                        output.append(normalizedModifier)
+                        stack.append({'id': nextContextId, 'alternative': 0})
+                        nextContextId += 1
+                        i = modifierEnd
+                        continue
+
+                    if pattern.startswith(('(?=', '(?!'), i):
+                        output.append(pattern[i:i + 3])
+                        stack.append({'id': nextContextId, 'alternative': 0})
+                        nextContextId += 1
+                        i += 3
+                        continue
+
+                    if pattern.startswith(('(?<=', '(?<!'), i):
+                        output.append(pattern[i:i + 4])
+                        stack.append({'id': nextContextId, 'alternative': 0})
+                        nextContextId += 1
+                        i += 4
+                        continue
+
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+
+                output.append(ch)
+                stack.append({'id': nextContextId, 'alternative': 0})
+                nextContextId += 1
+                i += 1
+                continue
+
+            output.append(ch)
+            i += 1
+
+        for reference in references:
+            if reference not in names:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                break
+
+        return ''.join(output)
+
+    def sanitizeRegExpLookbehindAssertions(self, pattern):
+        output = []
+        i = 0
+        length = len(pattern)
+        classMarker = False
+
+        while i < length:
+            ch = pattern[i]
+
+            if classMarker:
+                output.append(ch)
+                if ch == '\\' and i + 1 < length:
+                    output.append(pattern[i + 1])
+                    i += 2
+                    continue
+                if ch == ']':
+                    classMarker = False
+                i += 1
+                continue
+
+            if ch == '\\':
+                output.append(pattern[i:i + 2])
+                i += 2
+                continue
+
+            if ch == '[':
+                classMarker = True
+                output.append(ch)
+                i += 1
+                continue
+
+            if pattern.startswith('(?<=', i):
+                output.append('(?=')
+                i += 4
+                continue
+
+            if pattern.startswith('(?<!', i):
+                output.append('(?!')
+                i += 4
+                continue
+
+            output.append(ch)
+            i += 1
+
+        return ''.join(output)
+
+    def sanitizeLegacyRegExpLiteralBracesAfterQuantifiers(self, pattern):
+        output = []
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        while i < length:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    output.append(pattern[i:i + 2])
+                    i += 2
+                    continue
+                output.append(ch)
+                if ch == '[':
+                    classDepth += 1
+                elif ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '\\':
+                output.append(pattern[i:i + 2])
+                i += 2
+                continue
+
+            if ch == '[':
+                if i + 1 < length and pattern[i + 1] == ']':
+                    output.append('(?!)')
+                    i += 2
+                    continue
+                if i + 2 < length and pattern[i + 1] == '^' and pattern[i + 2] == ']':
+                    output.append('[\\s\\S]')
+                    i += 3
+                    continue
+                classDepth = 1
+                output.append(ch)
+                i += 1
+                continue
+
+            quantifierEnd = None
+            if ch in '*+?':
+                output.append(ch)
+                quantifierEnd = i + 1
+            elif ch == '{':
+                quantifierEnd = self.readRegExpBracedQuantifier(pattern, i)
+                if quantifierEnd is None:
+                    output.append(ch)
+                    i += 1
+                    continue
+                output.append(pattern[i:quantifierEnd])
+            else:
+                output.append(ch)
+                i += 1
+                continue
+
+            i = quantifierEnd
+            if i < length and pattern[i] == '?':
+                output.append('?')
+                i += 1
+            if i < length and pattern[i] == '{':
+                output.append('\\{')
+                i += 1
+
+        return ''.join(output)
+
+    def sanitizeLegacyRegExpPattern(self, pattern):
+        output = []
+        i = 0
+        length = len(pattern)
+        classDepth = 0
+
+        def sanitizeClassEscape(index):
+            if index + 1 >= length:
+                return '\\\\', index + 1
+
+            escaped = pattern[index + 1]
+            if escaped == 'c':
+                if index + 2 < length and pattern[index + 2] in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz':
+                    value = ord(pattern[index + 2].upper()) - ord('A') + 1
+                    return '\\x%02x' % value, index + 3
+                return 'c', index + 2
+
+            if escaped == 'x':
+                if index + 3 < length and Character.isHexDigit(pattern[index + 2]) and Character.isHexDigit(pattern[index + 3]):
+                    return pattern[index:index + 4], index + 4
+                return 'x', index + 2
+
+            if escaped == 'u':
+                if index + 5 < length and all(Character.isHexDigit(ch) for ch in pattern[index + 2:index + 6]):
+                    return pattern[index:index + 6], index + 6
+                return 'u', index + 2
+
+            if escaped == 'b':
+                return '\\x08', index + 2
+
+            if escaped in 'fntvr0':
+                return '\\' + escaped, index + 2
+
+            if escaped in 'dDsSwW':
+                return 'z' if index > 0 and pattern[index - 1] == '-' else 'a', index + 2
+
+            if escaped in '^$\\.*+?()[]{}|-/':
+                return '\\' + escaped if escaped in '\\]^-/' else re.escape(escaped), index + 2
+
+            return re.escape(escaped), index + 2
+
+        while i < length:
+            ch = pattern[i]
+
+            if classDepth > 0:
+                if ch == '\\':
+                    replacement, i = sanitizeClassEscape(i)
+                    output.append(replacement)
+                    continue
+                output.append(ch)
+                if ch == '[':
+                    classDepth += 1
+                elif ch == ']':
+                    classDepth -= 1
+                i += 1
+                continue
+
+            if ch == '[':
+                classDepth = 1
+                output.append(ch)
+                i += 1
+                continue
+
+            if ch == '\\':
+                if i + 1 >= length:
+                    output.append(ch)
+                    i += 1
+                    continue
+
+                escaped = pattern[i + 1]
+                if escaped == 'c':
+                    if i + 2 < length and pattern[i + 2] in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz':
+                        value = ord(pattern[i + 2].upper()) - ord('A') + 1
+                        output.append('\\x%02x' % value)
+                        i += 3
+                    else:
+                        output.append('c')
+                        i += 2
+                    continue
+
+                if escaped == 'x':
+                    if i + 3 < length and Character.isHexDigit(pattern[i + 2]) and Character.isHexDigit(pattern[i + 3]):
+                        output.append(pattern[i:i + 4])
+                        i += 4
+                    else:
+                        output.append('x')
+                        i += 2
+                    continue
+
+                if escaped == 'u':
+                    if i + 5 < length and all(Character.isHexDigit(ch) for ch in pattern[i + 2:i + 6]):
+                        output.append(pattern[i:i + 6])
+                        i += 6
+                    else:
+                        output.append('u')
+                        i += 2
+                    continue
+
+                if escaped in 'pP':
+                    output.append(escaped)
+                    i += 2
+                    continue
+
+                if escaped in 'bB':
+                    output.append('\\' + escaped)
+                    i += 2
+                    if i < length and pattern[i] == '{' and self.readRegExpBracedQuantifierSyntax(pattern, i) is None:
+                        output.append('\\{')
+                        i += 1
+                    continue
+
+                if escaped in 'dDsSwWbBfnrtv0^$\\.*+?()[]{}|':
+                    output.append(pattern[i:i + 2])
+                elif escaped == '/':
+                    output.append('/')
+                else:
+                    output.append(re.escape(escaped))
+                i += 2
+                continue
+
+            if ch == '{':
+                end = self.readRegExpBracedQuantifierSyntax(pattern, i)
+                if end is None:
+                    output.append('\\{')
+                    i += 1
+                else:
+                    output.append(pattern[i:end])
+                    i = end
+                continue
+
+            output.append(ch)
+            i += 1
+
+        return ''.join(output)
+
+    def readUnicodeSetNestedClass(self, content, index):
+        i = index + 1
+        depth = 1
+        nested = []
+        length = len(content)
+
+        while i < length and depth > 0:
+            ch = content[i]
+            if ch == '\\':
+                if i + 2 < length and content[i + 1] in ('p', 'P', 'q') and content[i + 2] == '{':
+                    end = self.skipRegExpBracedEscape(content, i)
+                    nested.append(content[i:end])
+                    i = end
+                else:
+                    nested.append(content[i:i + 2])
+                    i += 2
+            elif ch == '[':
+                depth += 1
+                nested.append(ch)
+                i += 1
+            elif ch == ']':
+                depth -= 1
+                if depth > 0:
+                    nested.append(ch)
+                i += 1
+            else:
+                nested.append(ch)
+                i += 1
+
+        if depth > 0:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return length, ''.join(nested)
+
+        return i, ''.join(nested)
+
+    def scanClassStringEscape(self, content, index):
+        length = len(content)
+        if index + 1 >= length:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 1, 0
+
+        escaped = content[index + 1]
+        if escaped in 'bfnrtv':
+            return index + 2, 1
+
+        if escaped == '0':
+            if index + 2 < length and Character.isDecimalDigit(content[index + 2]):
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 2, 1
+
+        if escaped == 'c':
+            if index + 2 < length and content[index + 2] in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz':
+                return index + 3, 1
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 2, 0
+
+        if escaped == 'x':
+            if index + 3 < length and Character.isHexDigit(content[index + 2]) and Character.isHexDigit(content[index + 3]):
+                return index + 4, 1
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return min(index + 2, length), 0
+
+        if escaped == 'u':
+            if index + 2 < length and content[index + 2] == '{':
+                i = index + 3
+                start = i
+                while i < length and content[i] != '}':
+                    if not Character.isHexDigit(content[i]):
+                        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                        return i + 1, 0
+                    i += 1
+                if i == start or i >= length or int(content[start:i], 16) > 0x10FFFF:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return i + 1, 0
+                return i + 1, 1
+
+            if index + 5 < length:
+                digits = content[index + 2:index + 6]
+                if all(Character.isHexDigit(ch) for ch in digits):
+                    return index + 6, 1
+
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return min(index + 2, length), 0
+
+        escapable = set('^$\\.*+?()[]{}|/-')
+        for punctuator in REGEXP_CLASS_SET_RESERVED_DOUBLE_PUNCTUATORS:
+            escapable.update(punctuator)
+
+        if escaped in escapable:
+            return index + 2, 1
+
+        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+        return index + 2, 0
+
+    def classStringDisjunctionMayContainStrings(self, content):
+        i = 0
+        length = len(content)
+        count = 0
+        mayContainStrings = False
+
+        while i < length:
+            ch = content[i]
+
+            if ch == '|':
+                if count != 1:
+                    mayContainStrings = True
+                count = 0
+                i += 1
+                continue
+
+            if i + 1 < length and content[i:i + 2] in REGEXP_CLASS_SET_RESERVED_DOUBLE_PUNCTUATORS:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return False
+
+            if ch == '\\':
+                i, increment = self.scanClassStringEscape(content, i)
+                count += increment
+                continue
+            else:
+                if ch in REGEXP_CLASS_SET_SYNTAX_CHARACTERS:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return False
+                i += 1
+
+            count += 1
+
+        return mayContainStrings or count != 1
+
+    def scanUnicodeSetOperand(self, content, index):
+        length = len(content)
+        if index >= length:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index, False, False
+
+        if index + 1 < length and content[index:index + 2] in REGEXP_CLASS_SET_RESERVED_DOUBLE_PUNCTUATORS:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 2, False, False
+
+        ch = content[index]
+
+        if ch == '\\':
+            if index + 1 >= length:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return index + 1, False, False
+
+            if index + 2 < length and content[index + 1] in ('p', 'P') and content[index + 2] == '{':
+                end, mayContainStrings = self.validateRegExpUnicodePropertyEscape(content, index, True, True)
+                return end, mayContainStrings, False
+
+            if index + 2 < length and content[index + 1] == 'q' and content[index + 2] == '{':
+                end = self.skipRegExpBracedEscape(content, index)
+                body = content[index + 3:end - 1] if end <= length and content[end - 1:end] == '}' else ''
+                return end, self.classStringDisjunctionMayContainStrings(body), False
+
+            end, _ = self.scanRegExpUnicodeEscapeSequence(content, index, True, True)
+            return end, False, content[index + 1] not in 'dDsSwW'
+
+        if ch == '[':
+            end, nested = self.readUnicodeSetNestedClass(content, index)
+            mayContainStrings = self.validateUnicodeSetClassOperators(nested)
+            return end, False if nested.startswith('^') else mayContainStrings, False
+
+        if ch in REGEXP_CLASS_SET_SYNTAX_CHARACTERS:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return index + 1, False, False
+
+        return index + 1, False, True
+
+    def validateUnicodeSetClassOperators(self, content):
+        negated = content.startswith('^')
+        i = 1 if negated else 0
+        length = len(content)
+        expressionKind = None
+        expectOperand = True
+        operandCount = 0
+        operandsMayContainStrings = []
+        lastOperandCanRange = False
+        lastOperandWasRange = False
+
+        while i < length:
+            ch = content[i]
+
+            if i + 1 < length and content[i:i + 2] in ('--', '&&'):
+                current = content[i:i + 2]
+                if expectOperand or expressionKind == 'union' or lastOperandWasRange:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return False
+                if expressionKind is None:
+                    if operandCount != 1:
+                        self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                        return False
+                    expressionKind = current
+                elif expressionKind != current:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return False
+                expectOperand = True
+                lastOperandCanRange = False
+                lastOperandWasRange = False
+                i += 2
+                continue
+
+            if i + 1 < length and content[i:i + 2] in REGEXP_CLASS_SET_RESERVED_DOUBLE_PUNCTUATORS:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return False
+
+            if expectOperand and expressionKind == '&&' and ch == '&':
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                return False
+
+            if ch == '-':
+                if expressionKind in ('--', '&&') or not lastOperandCanRange:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return False
+                end, mayContainStrings, canRange = self.scanUnicodeSetOperand(content, i + 1)
+                if mayContainStrings or not canRange:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return False
+                operandsMayContainStrings[-1] = False
+                expectOperand = False
+                lastOperandCanRange = False
+                lastOperandWasRange = True
+                i = end
+                continue
+
+            if not expectOperand:
+                if expressionKind in ('--', '&&'):
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    return False
+                expressionKind = 'union'
+
+            end, mayContainStrings, canRange = self.scanUnicodeSetOperand(content, i)
+            operandCount += 1
+            operandsMayContainStrings.append(mayContainStrings)
+            expectOperand = False
+            lastOperandCanRange = canRange
+            lastOperandWasRange = False
+            i = end
+
+        if expressionKind in ('--', '&&') and expectOperand:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return False
+
+        if expressionKind == '&&':
+            mayContainStrings = bool(operandsMayContainStrings) and all(operandsMayContainStrings)
+        elif expressionKind == '--':
+            mayContainStrings = operandsMayContainStrings[0] if operandsMayContainStrings else False
+        else:
+            mayContainStrings = any(operandsMayContainStrings)
+
+        if negated and mayContainStrings:
+            self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return False
+
+        return False if negated else mayContainStrings
+
+    def sanitizeUnicodeSetClass(self, content):
+        self.validateUnicodeSetClassOperators(content)
+
+        if content == '^':
+            return '\\s\\S'
+
+        output = []
+        i = 0
+        length = len(content)
+
+        while i < length:
+            ch = content[i]
+
+            if ch == '\\':
+                if i + 2 < length and content[i + 1] in ('p', 'P') and content[i + 2] == '{':
+                    self.validateRegExpUnicodePropertyEscape(content, i, True)
+                    output.append('a')
+                    i = self.skipRegExpBracedEscape(content, i)
+                elif i + 2 < length and content[i + 1] == 'q' and content[i + 2] == '{':
+                    output.append('a')
+                    i = self.skipRegExpBracedEscape(content, i)
+                else:
+                    end, replacement = self.scanRegExpUnicodeEscapeSequence(content, i, True, True)
+                    output.append(replacement)
+                    i = end
+                continue
+
+            if i + 1 < length and content[i:i + 2] in ('--', '&&'):
+                i += 2
+                continue
+
+            if ch in '[]':
+                i += 1
+                continue
+
+            output.append(ch)
+            i += 1
+
+        return ''.join(output) or 'a'
+
+    def sanitizeUnicodeSetsPattern(self, pattern):
+        output = []
+        i = 0
+        length = len(pattern)
+
+        while i < length:
+            ch = pattern[i]
+
+            if ch == '\\':
+                if i + 2 < length and pattern[i + 1] in ('p', 'P') and pattern[i + 2] == '{':
+                    self.validateRegExpUnicodePropertyEscape(pattern, i, True)
+                    output.append('.')
+                    i = self.skipRegExpBracedEscape(pattern, i)
+                else:
+                    end, replacement = self.scanRegExpUnicodeEscapeSequence(pattern, i, False, True)
+                    output.append(replacement)
+                    i = end
+                continue
+
+            if ch == '[':
+                start = i
+                i += 1
+                depth = 1
+                content = []
+                while i < length and depth > 0:
+                    ch = pattern[i]
+                    if ch == '\\':
+                        if i + 2 < length and pattern[i + 1] == 'q' and pattern[i + 2] == '{':
+                            end = self.skipRegExpBracedEscape(pattern, i)
+                            content.append(pattern[i:end])
+                            i = end
+                        else:
+                            content.append(pattern[i:i + 2])
+                            i += 2
+                    elif ch == '[':
+                        depth += 1
+                        content.append(ch)
+                        i += 1
+                    elif ch == ']':
+                        depth -= 1
+                        if depth > 0:
+                            content.append(ch)
+                        i += 1
+                    else:
+                        content.append(ch)
+                        i += 1
+
+                if depth > 0:
+                    self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+                    output.append(pattern[start:])
+                    break
+
+                output.append('[' + self.sanitizeUnicodeSetClass(''.join(content)) + ']')
+                continue
+
+            if ch == '{':
+                end = self.validateRegExpBracedQuantifier(pattern, i)
+                output.append(pattern[i:end])
+                i = end
+                continue
+
+            if ch in ']}':
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+
+            output.append(ch)
+            i += 1
+
+        return ''.join(output)
+
     def testRegExp(self, pattern, flags):
+        self.validateRegExpFlags(flags)
+
         # The BMP character to use as a replacement for astral symbols when
         # translating an ES6 "u"-flagged pattern to an ES5-compatible
         # approximation.
@@ -1189,17 +2939,61 @@ class Scanner(object):
             elif codePoint <= 0xFFFF:
                 return uchr(codePoint)
             return astralSubstitute
-        pattern = re.sub(r'\\u\{([0-9a-fA-F]+)\}|\\u([a-fA-F0-9]{4})', astralSub, pattern)
+
+        pyflags = 0
+        if 'm' in flags:
+            pyflags |= re.M
+        if 'i' in flags:
+            pyflags |= re.I
+        if 's' in flags:
+            pyflags |= re.S
+
+        # Python's regexp engine does not support UnicodeSets (`v`) syntax, so
+        # compile a sanitized pattern to keep basic validation active.
+        if 'v' in flags:
+            captureCount = self.countRegExpCapturingGroups(pattern)
+            self.validateRegExpQuantifierSuffixes(pattern)
+            pattern = self.prepareRegExpPattern(pattern)
+            self.validateRegExpAssertionQuantifiers(pattern)
+            self.validateRegExpBracedQuantifiers(pattern)
+            pattern = self.sanitizeRegExpLookbehindAssertions(pattern)
+            pattern = self.sanitizeRegExpNumericBackreferences(pattern, captureCount)
+            try:
+                re.compile(self.sanitizeUnicodeSetsPattern(pattern), pyflags)
+            except Exception:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return None
+
+        if 'u' in flags:
+            captureCount = self.countRegExpCapturingGroups(pattern)
+            self.validateRegExpQuantifierSuffixes(pattern)
+            self.validateRegExpAssertionQuantifiers(pattern)
+            self.validateRegExpBracedQuantifiers(pattern)
+            pattern = self.prepareRegExpPattern(pattern)
+            pattern = self.sanitizeRegExpLookbehindAssertions(pattern)
+            pattern = self.sanitizeRegExpNumericBackreferences(pattern, captureCount)
+            pattern = self.sanitizeRegExpUnicodePattern(pattern)
+            pattern = re.sub(r'[\uD800-\uDBFF][\uDC00-\uDFFF]', astralSubstitute, pattern)
+            try:
+                return re.compile(pattern, pyflags)
+            except Exception:
+                self.tolerateUnexpectedToken(Messages.InvalidRegExp)
+            return None
+
+        self.validateRegExpQuantifierSuffixes(pattern, False)
+        self.validateLegacyRegExpLookbehindQuantifiers(pattern)
+
+        pattern = self.prepareRegExpPattern(pattern, self.hasRegExpNamedCapturingGroup(pattern, False))
+        pattern = re.sub(r'\\u([a-fA-F0-9]{4})', astralSub, pattern)
 
         # Replace each paired surrogate with a single ASCII symbol to
         # avoid throwing on regular expressions that are only valid in
         # combination with the "u" flag.
         pattern = re.sub(r'[\uD800-\uDBFF][\uDC00-\uDFFF]', astralSubstitute, pattern)
 
-        # Return a regular expression object for this pattern-flag pair, or
-        # `null` in case the current environment doesn't support the flags it
-        # uses.
-        pyflags = 0 | re.M if 'm' in flags else 0 | re.I if 'i' in flags else 0
+        pattern = self.sanitizeLegacyRegExpPattern(pattern)
+        pattern = self.sanitizeLegacyRegExpLiteralBracesAfterQuantifiers(pattern)
+
         try:
             return re.compile(pattern, pyflags)
         except Exception:
