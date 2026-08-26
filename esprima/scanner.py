@@ -1094,7 +1094,8 @@ class Scanner(object):
 
         self.index += 1
         octal = False
-        str = ''
+        # List + join: `str += ch` here is O(n^2) in CPython; `list +=` extends by char.
+        str = []
 
         while not self.eof():
             ch = self.source[self.index]
@@ -1170,7 +1171,7 @@ class Scanner(object):
 
         return RawToken(
             type=Token.StringLiteral,
-            value=str,
+            value=''.join(str),
             octal=octal,
             lineNumber=self.lineNumber,
             lineStart=self.lineStart,
@@ -1181,7 +1182,8 @@ class Scanner(object):
     # https://tc39.github.io/ecma262/#sec-template-literal-lexical-components
 
     def scanTemplate(self):
-        cooked = ''
+        # List + join, as in scanStringLiteral, to keep this linear.
+        cooked = []
         terminated = False
         start = self.index
 
@@ -1283,7 +1285,7 @@ class Scanner(object):
         return RawToken(
             type=Token.Template,
             value=self.source[start + 1:self.index - rawOffset],
-            cooked=cooked,
+            cooked=''.join(cooked),
             head=head,
             tail=tail,
             lineNumber=self.lineNumber,
